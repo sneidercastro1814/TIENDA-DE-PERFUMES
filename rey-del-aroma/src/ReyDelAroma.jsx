@@ -7,11 +7,7 @@ import feat1 from "./assets/featured/feat-1.jpg";
 import feat2 from "./assets/featured/feat-2.jpg";
 import feat3 from "./assets/featured/feat-3.jpg";
 import feat4 from "./assets/featured/feat-4.jpg";
-import feat5 from "./assets/featured/feat-5.jpg";
 import logoPrincipal from "./assets/logo-principal.png";
-import logoWompi from "./assets/payments/wompi.png";
-import logoAddi from "./assets/payments/addi.png";
-import logoSistecredito from "./assets/payments/sistecredito.png";
 
 /* ════════════════════════════════════════════════════════════════
    CONFIGURACIÓN — edita estos valores
@@ -24,92 +20,55 @@ const waLink = (text) => `https://wa.me/${WHATSAPP}?text=${encodeURIComponent(te
 const cop = (n) => "$" + Number(n || 0).toLocaleString("es-CO");
 
 /* ════════════════════════════════════════════════════════════════
-   MÉTODOS DE PAGO
-   Los valores PÚBLICOS vienen de variables de entorno (VITE_...).
-   Los SECRETOS (firma de integridad, eventos, client secret) viven
-   SOLO en el servidor (funciones de Netlify), nunca en este archivo.
+   MÉTODOS DE PAGO — pega aquí tus datos reales de cada pasarela
    ════════════════════════════════════════════════════════════════ */
-const ENV = import.meta.env;
-
-const WOMPI = {
-  publicKey: ENV.VITE_WOMPI_PUBLIC_KEY || "",
-  env: (ENV.VITE_WOMPI_ENV || "prod").toLowerCase(), // "prod" | "test"
-};
-// Base de la API pública de Wompi (solo lectura de estado de transacción)
-const WOMPI_API =
-  WOMPI.env === "test" ? "https://sandbox.wompi.co/v1" : "https://production.wompi.co/v1";
-
-const ADDI = {
-  enabled: String(ENV.VITE_ADDI_ENABLED ?? "true") === "true",
-  slug: ENV.VITE_ADDI_SLUG || "",
-};
-
-const SISTECREDITO = {
-  enabled: String(ENV.VITE_SISTECREDITO_ENABLED ?? "false") === "true",
-  url: ENV.VITE_SISTECREDITO_URL || "",
-};
-
-// Mapa que usa la UI para mostrar/ocultar métodos
 const PAYMENTS = {
-  wompi: { enabled: !!WOMPI.publicKey },
-  addi: { enabled: ADDI.enabled && !!ADDI.slug },
-  sistecredito: { enabled: SISTECREDITO.enabled && !!SISTECREDITO.url },
+  // WOMPI — tarjetas, PSE, Nequi, Bancolombia…
+  wompi: {
+    enabled: true,
+    publicKey: "",        // ← tu llave pública: pub_prod_xxx  (usa pub_test_xxx para pruebas)
+    integritySecret: "",  // ← tu "secreto de integridad" de Wompi (ver nota de seguridad abajo)
+    redirectUrl: "",      // ← (opcional) URL de tu tienda a la que vuelve el cliente tras pagar
+  },
+  // ADDI — paga a cuotas, sin tarjeta
+  addi: {
+    enabled: true,
+    url: "",              // ← tu enlace de checkout / comercio Addi
+  },
+  // SISTECRÉDITO — crédito en cuotas fijas
+  sistecredito: {
+    enabled: true,
+    url: "",              // ← tu enlace de checkout Sistecrédito
+  },
 };
 
 /* Referencia única para cada pedido */
 const newReference = () =>
   "RDA-" + Date.now().toString(36).toUpperCase() + "-" + Math.random().toString(36).slice(2, 6).toUpperCase();
 
-/* Construye la URL del Checkout Web de Wompi.
-   La FIRMA se pide al servidor (/api/wompi-signature): el secreto de
-   integridad jamás llega al navegador. */
+/* Firma de integridad de Wompi (SHA-256). Si no hay secreto, no firma. */
+async function wompiSignature(reference, amountInCents, currency, secret) {
+  if (!secret || !window.crypto?.subtle) return "";
+  const data = `${reference}${amountInCents}${currency}${secret}`;
+  const buf = await window.crypto.subtle.digest("SHA-256", new TextEncoder().encode(data));
+  return Array.from(new Uint8Array(buf)).map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+/* Construye la URL del Checkout Web de Wompi */
 async function buildWompiUrl({ amount, reference, email, phone, fullName }) {
   const cents = Math.round(Number(amount) || 0) * 100; // COP no tiene decimales
-
-  const res = await fetch("/api/wompi-signature", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ reference, amountInCents: cents, currency: "COP" }),
-  });
-  if (!res.ok) throw new Error("No se pudo generar la firma del pago");
-  const { signature } = await res.json();
-  if (!signature) throw new Error("Firma vacía");
-
-  const redirectUrl = `${window.location.origin}/?wompi=1`;
   const p = new URLSearchParams();
-  p.set("public-key", WOMPI.publicKey);
+  p.set("public-key", PAYMENTS.wompi.publicKey);
   p.set("currency", "COP");
   p.set("amount-in-cents", String(cents));
   p.set("reference", reference);
-  p.set("signature:integrity", signature);
-  p.set("redirect-url", redirectUrl);
+  if (PAYMENTS.wompi.redirectUrl) p.set("redirect-url", PAYMENTS.wompi.redirectUrl);
   if (email) p.set("customer-data:email", email);
   if (phone) p.set("customer-data:phone-number", phone);
   if (fullName) p.set("customer-data:full-name", fullName);
+  const sig = await wompiSignature(reference, cents, "COP", PAYMENTS.wompi.integritySecret);
+  if (sig) p.set("signature:integrity", sig);
   return `https://checkout.wompi.co/p/?${p.toString()}`;
-}
-
-/* Componente del widget de Addi (cuotas). Carga el bundle oficial una vez
-   y renderiza el web component <addi-widget>. Se re-monta al cambiar el
-   precio gracias a la "key". */
-function AddiWidget({ price, className }) {
-  useEffect(() => {
-    if (!ADDI.enabled || !ADDI.slug) return;
-    const SRC = "https://s3.amazonaws.com/widgets.addi.com/bundle.min.js";
-    if (!document.querySelector(`script[src="${SRC}"]`)) {
-      const s = document.createElement("script");
-      s.src = SRC;
-      s.async = true;
-      document.body.appendChild(s);
-    }
-  }, []);
-  if (!ADDI.enabled || !ADDI.slug || !price) return null;
-  const cleanPrice = Math.round(Number(price) || 0);
-  return (
-    <div className={`addi-box ${className || ""}`}>
-      <addi-widget key={cleanPrice} price={String(cleanPrice)} ally-slug={ADDI.slug}></addi-widget>
-    </div>
-  );
 }
 
 /* Abre un enlace externo agregando monto + referencia como parámetros */
@@ -144,23 +103,18 @@ const CSS = `
   --text-dim: #444;
   --text-muted: #888;
   --wa: #1fa855;
-  --serif: 'Fraunces', 'Cormorant Garamond', Georgia, serif;
-  --sans: 'Manrope', system-ui, sans-serif;
+  --serif: 'Cormorant Garamond', Georgia, serif;
+  --sans: 'Jost', system-ui, sans-serif;
 }
 
 html, body {
   background: var(--bg);
   color: var(--text);
   font-family: var(--sans);
-  font-weight: 400;
-  font-optical-sizing: auto;
+  font-weight: 300;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   overflow-x: hidden;
-}
-.l-rey, .sec-title, .pd-name, .coll-title, .co-title, .admin-title, .login-title,
-.pcard-name, .pcard-price, .pd-price, .cart-title, .cart-ta, .co-total, .footer-logo {
-  font-optical-sizing: auto;
 }
 button { font-family: var(--sans); }
 input, select, textarea { font-family: var(--sans); }
@@ -193,8 +147,8 @@ body::after {
 .nav-logo-text { display: flex; flex-direction: column; }
 .l-rey { font-family: var(--serif); font-size: 28px; font-weight: 600; color: var(--gold); letter-spacing: 7px; display: block; line-height: 1; }
 .l-da { font-size: 10px; font-weight: 500; letter-spacing: 7px; color: var(--gold); opacity: 0.45; display: block; margin-top: 4px; }
-.nav-sep { display: none; }
-.nav-links { position: absolute; left: 50%; transform: translateX(-50%); display: flex; gap: 2px; z-index: 1; }
+.nav-sep { width: 1px; height: 30px; background: var(--border); }
+.nav-links { display: flex; gap: 2px; }
 .nl { font-size: 12px; font-weight: 500; letter-spacing: 2.5px; color: rgba(255,255,255,0.72); cursor: pointer; text-transform: uppercase; background: none; border: none; transition: color 0.25s; padding: 8px 13px; position: relative; }
 .nl::after { content: ''; position: absolute; bottom: 2px; left: 50%; right: 50%; height: 1px; background: var(--gold); transition: left 0.35s, right 0.35s; }
 .nl:hover::after, .nl.act::after { left: 13px; right: 13px; }
@@ -218,22 +172,18 @@ body::after {
 .mobile-menu .nl::after { display: none; }
 .mobile-menu .nl:hover, .mobile-menu .nl.act { background: rgba(201,168,76,0.05); color: var(--gold); }
 
-/* ── CARRUSEL HERO (ancho completo, de borde a borde, sin franjas blancas) ── */
-.hero-carousel { padding: 0 0 16px; background: var(--bg); position: relative; }
-.hc-viewport { position: relative; z-index: 1; width: 100%; margin: 0; overflow: hidden; background: #0a0a09; border-bottom: 1px solid rgba(201,168,76,0.42); box-shadow: 0 26px 60px -34px rgba(0,0,0,0.55); height: min(53vw, 640px); }
-.hc-track { display: flex; height: 100%; transition: transform 0.85s cubic-bezier(.45,0,.15,1); }
-.hc-slide { position: relative; min-width: 100%; height: 100%; border: none; padding: 0; margin: 0; cursor: pointer; background: #0a0a09; display: block; overflow: hidden; }
-/* fondo difuminado del MISMO banner: llena los lados sin recortar ni dejar blanco */
-.hc-slide-bg { position: absolute; inset: 0; background-size: cover; background-position: center; filter: blur(38px) brightness(0.5) saturate(1.15); transform: scale(1.2); z-index: 0; }
-/* banner COMPLETO al frente, centrado y SIN recorte */
-.hc-slide-img { position: relative; z-index: 1; width: 100%; height: 100%; object-fit: contain; display: block; }
-.hc-arrow { position: absolute; top: 50%; transform: translateY(-50%); width: 52px; height: 52px; border-radius: 50%; background: rgba(12,11,9,0.5); color: var(--gold-l); border: 1px solid rgba(201,168,76,0.55); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); cursor: pointer; font-size: 26px; line-height: 1; display: flex; align-items: center; justify-content: center; transition: all 0.3s cubic-bezier(.25,.46,.45,.94); z-index: 5; box-shadow: 0 8px 24px rgba(0,0,0,0.35); }
-.hc-arrow:hover { background: var(--gold); color: #1a1208; border-color: var(--gold); transform: translateY(-50%) scale(1.08); box-shadow: 0 10px 30px rgba(201,168,76,0.45); }
-.hc-prev { left: 26px; } .hc-next { right: 26px; }
-.hc-dots { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 10px; z-index: 5; padding: 7px 15px; background: rgba(10,10,9,0.34); border-radius: 30px; backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); border: 1px solid rgba(255,255,255,0.09); }
-.hc-dot { width: 8px; height: 8px; border-radius: 50%; border: none; background: rgba(255,255,255,0.4); cursor: pointer; padding: 0; transition: all 0.35s; }
-.hc-dot:hover { background: rgba(255,255,255,0.7); }
-.hc-dot.act { background: var(--gold); width: 26px; border-radius: 5px; box-shadow: 0 0 12px rgba(201,168,76,0.7); }
+/* ── CARRUSEL HERO ── */
+.hero-carousel { padding: 28px 52px 10px; background: var(--bg); }
+.hc-viewport { position: relative; max-width: 1280px; margin: 0 auto; border-radius: 14px; overflow: hidden; border: 1px solid var(--border); box-shadow: 0 30px 80px rgba(0,0,0,0.18); background: #0a0a0a; aspect-ratio: 1350 / 714; }
+.hc-track { display: flex; height: 100%; transition: transform 0.7s cubic-bezier(.4,0,.2,1); }
+.hc-slide { min-width: 100%; height: 100%; border: none; padding: 0; cursor: pointer; background: #0a0a0a; display: block; }
+.hc-slide img { width: 100%; height: 100%; object-fit: contain; display: block; }
+.hc-arrow { position: absolute; top: 50%; transform: translateY(-50%); width: 48px; height: 48px; border-radius: 50%; background: rgba(10,10,10,0.4); color: var(--gold-l); border: 1px solid rgba(201,168,76,0.5); backdrop-filter: blur(6px); cursor: pointer; font-size: 28px; line-height: 1; display: flex; align-items: center; justify-content: center; transition: all 0.25s; z-index: 3; }
+.hc-arrow:hover { background: var(--gold); color: #000; border-color: var(--gold); }
+.hc-prev { left: 18px; } .hc-next { right: 18px; }
+.hc-dots { position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%); display: flex; gap: 9px; z-index: 3; }
+.hc-dot { width: 9px; height: 9px; border-radius: 50%; border: 1px solid rgba(255,255,255,0.6); background: rgba(255,255,255,0.25); cursor: pointer; padding: 0; transition: all 0.3s; }
+.hc-dot.act { background: var(--gold); border-color: var(--gold); width: 26px; border-radius: 5px; }
 
 /* ── DESTACADOS (íconos dorados) ── */
 .featured { background: var(--bg); padding: 30px 52px 12px; display: flex; flex-wrap: wrap; gap: 22px 32px; justify-content: center; }
@@ -263,15 +213,15 @@ body::after {
 /* ── PRODUCTOS ── */
 .products-wrap { padding: 56px 52px 88px; background: var(--bg); }
 .sec-hdr { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 44px; flex-wrap: wrap; gap: 8px; }
-.sec-title { font-family: var(--serif); font-size: 42px; font-weight: 600; letter-spacing: 0.5px; }
+.sec-title { font-family: var(--serif); font-size: 44px; font-weight: 300; letter-spacing: 0.5px; }
 .sec-title span { color: var(--gold); font-style: italic; }
 .sec-cnt { font-size: 12px; color: var(--text-muted); letter-spacing: 2.5px; text-transform: uppercase; }
-.pgrid { display: grid; grid-template-columns: repeat(3,1fr); gap: 1px; background: rgba(201,168,76,0.08); }
+.pgrid { display: grid; grid-template-columns: repeat(2,1fr); gap: 1px; background: rgba(201,168,76,0.08); max-width: 1180px; margin: 0 auto; }
 .pcard { background: var(--bg); cursor: pointer; overflow: hidden; transition: all 0.45s cubic-bezier(0.25,0.46,0.45,0.94); position: relative; display: flex; flex-direction: column; }
 .pcard::before { content: ''; position: absolute; inset: 0; background: linear-gradient(135deg, rgba(201,168,76,0.05) 0%, transparent 55%); opacity: 0; transition: opacity 0.4s; z-index: 1; pointer-events: none; }
 .pcard:hover::before { opacity: 1; }
 .pcard:hover { background: #f6f6f2; box-shadow: 0 28px 70px rgba(0,0,0,0.1); z-index: 2; transform: translateY(-8px); }
-.pcard-img { height: 300px; display: flex; align-items: center; justify-content: center; position: relative; background: #ffffff; overflow: hidden; }
+.pcard-img { height: 340px; display: flex; align-items: center; justify-content: center; position: relative; background: #ffffff; overflow: hidden; }
 .pcard-real-img { width: 100%; height: 100%; object-fit: contain; padding: 24px; transition: transform 0.5s; }
 .pcard:hover .pcard-real-img { transform: scale(1.05); }
 .pcard-badge { position: absolute; top: 16px; left: 0; background: var(--gold); color: #000; font-size: 11px; font-weight: 700; letter-spacing: 1.5px; padding: 6px 14px 6px 12px; text-transform: uppercase; z-index: 2; box-shadow: 0 4px 12px rgba(0,0,0,0.12); }
@@ -302,7 +252,7 @@ body::after {
 .pd-real-img { max-width: 88%; max-height: 88%; object-fit: contain; position: relative; z-index: 1; }
 .pd-info { padding-top: 8px; }
 .pd-badge { display: inline-block; background: var(--gold); color: #000; font-size: 11px; font-weight: 700; letter-spacing: 2px; padding: 6px 16px; text-transform: uppercase; margin-bottom: 22px; }
-.pd-name { font-family: var(--serif); font-size: 52px; font-weight: 600; line-height: 0.95; margin-bottom: 10px; letter-spacing: 0.5px; }
+.pd-name { font-family: var(--serif); font-size: 56px; font-weight: 300; line-height: 0.95; margin-bottom: 10px; letter-spacing: 0.5px; }
 .pd-name b { color: var(--gold-d); font-weight: 600; }
 .pd-sub { font-size: 12px; letter-spacing: 5px; color: var(--text-muted); text-transform: uppercase; margin-bottom: 24px; }
 .pd-chips { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 24px; padding-bottom: 24px; border-bottom: 1px solid rgba(0,0,0,0.08); }
@@ -313,7 +263,7 @@ body::after {
 .pd-promo { display: flex; align-items: center; gap: 12px; background: rgba(201,168,76,0.08); border: 1px solid var(--border); padding: 14px 18px; margin-bottom: 26px; }
 .pd-promo b { color: var(--gold-d); font-family: var(--serif); font-size: 22px; }
 .pd-promo span { font-size: 13px; color: var(--text-dim); letter-spacing: 0.4px; }
-.pd-desc { font-size: 14.5px; color: var(--text-dim); line-height: 2; padding: 2px 0 24px; border-bottom: 1px solid rgba(0,0,0,0.08); margin-bottom: 30px; font-weight: 400; }
+.pd-desc { font-size: 14px; color: var(--text-dim); line-height: 2.2; padding: 22px 0; border-top: 1px solid rgba(0,0,0,0.08); border-bottom: 1px solid rgba(0,0,0,0.08); margin-bottom: 30px; font-weight: 300; }
 .pd-sec-t { font-size: 11px; font-weight: 600; letter-spacing: 4px; color: var(--gold); text-transform: uppercase; margin-bottom: 16px; }
 .sizes-row { display: flex; gap: 8px; margin-bottom: 30px; flex-wrap: wrap; }
 .size-btn { padding: 12px 24px; font-size: 13px; font-weight: 400; border: 1px solid rgba(0,0,0,0.1); background: none; color: #777; cursor: pointer; transition: all 0.25s; font-family: var(--sans); letter-spacing: 1px; }
@@ -338,7 +288,7 @@ body::after {
 .coll-sec { padding: 88px 52px; background: var(--bg2); }
 .coll-hdr { text-align: center; margin-bottom: 56px; }
 .coll-eyebrow { font-size: 12px; font-weight: 500; letter-spacing: 6px; color: var(--gold); text-transform: uppercase; margin-bottom: 14px; }
-.coll-title { font-family: var(--serif); font-size: 48px; font-weight: 600; margin-bottom: 10px; }
+.coll-title { font-family: var(--serif); font-size: 52px; font-weight: 300; margin-bottom: 10px; }
 .coll-title span { color: var(--gold); font-style: italic; }
 .coll-sub { font-size: 13px; letter-spacing: 4px; color: var(--text-muted); text-transform: uppercase; }
 .coll-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 16px; max-width: 1280px; margin: 0 auto; }
@@ -368,20 +318,11 @@ body::after {
 .footer-wa:hover { background: rgba(31,168,85,0.08); border-color: var(--wa); }
 .footer-divider { width: 40px; height: 1px; background: var(--gold); margin: 0 auto 18px; opacity: 0.3; }
 .footer-copy { font-size: 12px; color: var(--text-muted); letter-spacing: 1.5px; line-height: 1.8; }
-/* ── MEDIOS DE PAGO ── */
-.pay-section { padding: 34px 52px 4px; text-align: center; }
-.pay-label { font-size: 11px; letter-spacing: 3px; text-transform: uppercase; color: var(--text-muted); margin-bottom: 16px; }
-.pay-badges { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 12px; }
-.pay-chip { display: inline-flex; align-items: center; justify-content: center; transition: transform 0.25s; }
-.pay-chip:hover { transform: translateY(-2px); }
-.pay-img { height: 46px; width: auto; display: block; border-radius: 9px; border: 1px solid rgba(0,0,0,0.08); box-shadow: 0 4px 14px rgba(0,0,0,0.06); }
-.pay-badges.sm { gap: 8px; margin-top: 12px; }
-.pay-badges.sm .pay-img { height: 30px; border-radius: 6px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
 
 /* ── ADMIN ── */
 .admin-wrap { max-width: 1100px; margin: 0 auto; padding: 52px; }
 .admin-hdr { display: flex; justify-content: space-between; align-items: center; margin-bottom: 32px; padding-bottom: 24px; border-bottom: 1px solid var(--border); gap: 16px; flex-wrap: wrap; }
-.admin-title { font-family: var(--serif); font-size: 38px; font-weight: 600; }
+.admin-title { font-family: var(--serif); font-size: 40px; font-weight: 300; }
 .admin-title span { color: var(--gold); font-style: italic; }
 .admin-info { margin-bottom: 24px; padding: 14px 18px; background: rgba(201,168,76,0.04); border: 1px solid var(--border); font-size: 14px; color: var(--text-muted); }
 .admin-info b { color: var(--gold-d); }
@@ -434,13 +375,7 @@ body::after {
 .ci-info { flex: 1; }
 .ci-name { font-family: var(--serif); font-size: 18px; margin-bottom: 5px; line-height: 1.1; }
 .ci-sz { font-size: 12px; color: var(--text-muted); letter-spacing: 1.5px; text-transform: uppercase; }
-.ci-price { font-family: var(--serif); font-size: 16px; font-weight: 600; color: var(--gold-d); }
-.ci-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 10px; }
-.ci-qty { display: inline-flex; align-items: center; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; background: #fff; }
-.ci-qbtn { width: 28px; height: 28px; background: none; border: none; color: var(--text); font-size: 16px; line-height: 1; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.18s; }
-.ci-qbtn:hover:not(:disabled) { background: var(--gold); color: #1a1208; }
-.ci-qbtn:disabled { color: var(--text-muted); opacity: 0.4; cursor: not-allowed; }
-.ci-qn { min-width: 30px; text-align: center; font-size: 13px; font-weight: 600; color: var(--text); font-family: var(--sans); }
+.ci-price { font-family: var(--serif); font-size: 16px; font-weight: 500; color: var(--gold-d); margin-top: 7px; }
 .ci-rm { background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 15px; line-height: 1; transition: color 0.2s; align-self: flex-start; padding: 4px; }
 .ci-rm:hover { color: #d64545; }
 .cart-foot { padding: 22px 28px; border-top: 1px solid rgba(0,0,0,0.08); background: var(--bg3); }
@@ -473,21 +408,11 @@ body::after {
 }
 
 /* ── LOGIN ── */
-/* ── LOGIN ADMIN ── */
-.login-screen { min-height: calc(100vh - 72px); display: flex; align-items: center; justify-content: center; padding: 48px 24px 64px; position: relative; background: radial-gradient(1100px 560px at 50% -8%, rgba(201,168,76,0.16), transparent 58%), linear-gradient(165deg, #1b1812 0%, #0d0c0a 58%, #070605 100%); }
-.login-screen::after { content: ''; position: absolute; inset: 0; background-image: radial-gradient(rgba(201,168,76,0.06) 1px, transparent 1px); background-size: 26px 26px; opacity: 0.5; pointer-events: none; }
-.login-card { position: relative; z-index: 1; width: 100%; max-width: 420px; background: linear-gradient(165deg, rgba(31,28,20,0.94), rgba(14,13,10,0.97)); border: 1px solid rgba(201,168,76,0.4); border-radius: 22px; padding: 46px 40px 40px; text-align: center; box-shadow: 0 40px 100px -24px rgba(0,0,0,0.72), 0 0 90px -42px rgba(201,168,76,0.6); }
-.login-card::before { content: ''; position: absolute; top: -38%; left: 50%; transform: translateX(-50%); width: 130%; height: 80%; background: radial-gradient(ellipse at center, rgba(201,168,76,0.16), transparent 64%); pointer-events: none; }
-.login-logo { position: relative; height: 88px; width: auto; object-fit: contain; margin: 0 auto 16px; display: block; filter: drop-shadow(0 8px 22px rgba(201,168,76,0.4)); }
-.login-title { position: relative; font-family: var(--serif); font-size: 38px; font-weight: 600; color: #f5f0e4; margin-bottom: 10px; line-height: 1.1; }
-.login-title span { color: var(--gold); font-style: italic; }
-.login-sub { position: relative; color: rgba(245,240,228,0.55); font-size: 11px; margin-bottom: 30px; letter-spacing: 3.5px; text-transform: uppercase; }
-.login-form { position: relative; display: flex; flex-direction: column; gap: 14px; }
-.login-input { width: 100%; background: rgba(255,255,255,0.06); border: 1px solid rgba(201,168,76,0.35); color: #fff; padding: 15px 18px; font-size: 15px; font-family: var(--sans); border-radius: 11px; outline: none; transition: all 0.25s; text-align: center; letter-spacing: 1px; }
-.login-input::placeholder { color: rgba(255,255,255,0.4); letter-spacing: normal; }
-.login-input:focus { border-color: var(--gold); background: rgba(201,168,76,0.08); box-shadow: 0 0 0 3px rgba(201,168,76,0.13); }
-.login-btn { width: 100%; background: linear-gradient(135deg, var(--gold-l), var(--gold)); color: #1a1208; border: none; padding: 16px; font-size: 13px; font-weight: 700; letter-spacing: 2.5px; text-transform: uppercase; font-family: var(--sans); border-radius: 11px; cursor: pointer; transition: all 0.3s; margin-top: 4px; }
-.login-btn:hover { box-shadow: 0 12px 34px rgba(201,168,76,0.42); transform: translateY(-2px); filter: brightness(1.06); }
+.login-wrap { max-width: 390px; margin: 90px auto; text-align: center; padding: 0 28px; }
+.login-title { font-family: var(--serif); font-size: 42px; margin-bottom: 10px; font-weight: 300; }
+.login-sub { color: var(--text-muted); font-size: 12px; margin-bottom: 36px; letter-spacing: 3.5px; text-transform: uppercase; }
+.login-form { display: flex; flex-direction: column; gap: 14px; }
+.hint { font-size: 13px; color: var(--text-muted); margin-top: 8px; }
 
 /* ── APP FADE ── */
 .app-root { opacity: 0; transition: opacity 0.35s ease; }
@@ -496,7 +421,7 @@ body::after {
 /* ════════ RESPONSIVE ════════ */
 @media (max-width: 1200px) {
   .nav { padding: 0 32px; }
-  .hero-carousel { padding: 0 0 8px; }
+  .hero-carousel { padding: 22px 32px 6px; }
   .featured { padding: 24px 32px 6px; }
   .products-wrap { padding: 48px 32px 72px; }
   .filters { padding: 0 32px; }
@@ -513,14 +438,9 @@ body::after {
   .footer-trust { grid-template-columns: repeat(2,1fr); }
   .sec-title { font-size: 36px; }
   .coll-title { font-size: 40px; }
-  .nav-links { gap: 0; }
-  .nav-links .nl { padding: 8px 8px; letter-spacing: 1.4px; }
 }
 @media (max-width: 768px) {
   .nav { padding: 0 18px; position: relative; height: 64px; }
-  .login-screen { min-height: calc(100vh - 64px); padding: 32px 18px 48px; }
-  .login-card { padding: 40px 26px 32px; border-radius: 18px; }
-  .login-title { font-size: 32px; }
   .nav-sep { display: none; }
   .nav-links { display: none; }
   .hamburger { display: flex; }
@@ -528,14 +448,15 @@ body::after {
   .ann-i { padding: 0 24px; }
   .announce::before, .announce::after { width: 50px; }
 
-  .hero-carousel { padding: 0 0 8px; }
-  .hc-arrow { width: 40px; height: 40px; font-size: 22px; }
-  .hc-prev { left: 12px; } .hc-next { right: 12px; }
-  .hc-dots { bottom: 12px; padding: 6px 12px; }
+  .hero-carousel { padding: 14px 14px 4px; }
+  .hc-viewport { border-radius: 10px; }
+  .hc-arrow { width: 38px; height: 38px; font-size: 22px; }
+  .hc-prev { left: 10px; } .hc-next { right: 10px; }
+  .hc-dots { bottom: 10px; }
 
-  .featured { padding: 24px 16px 6px; gap: 18px 16px; }
-  .feat-badge { width: 30%; min-width: 92px; }
-  .feat-ring { width: 70px; height: 70px; }
+  .featured { padding: 24px 16px 6px; gap: 22px 18px; }
+  .feat-badge { width: 42%; min-width: 120px; }
+  .feat-ring { width: 72px; height: 72px; }
   .feat-cap { font-size: 11px; letter-spacing: 1.5px; }
 
   .filters { padding: 0 14px; overflow-x: auto; scrollbar-width: none; }
@@ -568,8 +489,6 @@ body::after {
   .footer-trust { grid-template-columns: repeat(2,1fr); }
   .ft-item { padding: 28px 16px; }
   .footer-bot { padding: 36px 18px; }
-  .pay-section { padding: 28px 18px 2px; }
-  .pay-img { height: 40px; }
 
   .admin-wrap { padding: 20px 14px; }
   .admin-title { font-size: 31px; }
@@ -579,13 +498,22 @@ body::after {
   .cart-drawer { width: 100%; }
 }
 @media (max-width: 480px) {
-  .pgrid { grid-template-columns: 1fr; }
+  .pgrid { grid-template-columns: repeat(2,1fr); }
   .pd-name { font-size: 34px; }
   .coll-title { font-size: 28px; }
   .sec-title { font-size: 25px; }
   .hc-arrow { width: 32px; height: 32px; font-size: 18px; }
   .feat-badge { width: 45%; }
-  .pcard-img { height: 260px; }
+  .pcard-img { height: 172px; }
+  .pcard-real-img { padding: 16px; }
+  .pcard-body { padding: 13px 13px 6px; }
+  .pcard-name { font-size: 17px; min-height: 40px; }
+  .pcard-sub { margin-bottom: 10px; letter-spacing: 1.5px; }
+  .pcard-price { font-size: 19px; }
+  .pcard-foot { padding: 11px 13px; }
+  .quick-buy { padding: 8px 12px; font-size: 10px; letter-spacing: 1px; }
+  .pcard-orig { font-size: 10px; letter-spacing: 1px; }
+  .icon-btn { font-size: 16px; padding: 6px 7px; }
 }
 @media (max-width: 360px) {
   .l-rey { font-size: 22px; letter-spacing: 4px; }
@@ -610,7 +538,7 @@ body::after {
 .co-wrap { padding: 48px 52px 96px; background: var(--bg); max-width: 1180px; margin: 0 auto; }
 .co-grid { display: grid; grid-template-columns: 1.45fr 1fr; gap: 56px; align-items: start; }
 .co-main { min-width: 0; }
-.co-title { font-family: var(--serif); font-size: 44px; font-weight: 600; letter-spacing: 0.5px; margin-bottom: 8px; }
+.co-title { font-family: var(--serif); font-size: 46px; font-weight: 300; letter-spacing: 0.5px; margin-bottom: 8px; }
 .co-title span { color: var(--gold); font-style: italic; }
 .co-lead { font-size: 14px; color: var(--text-dim); letter-spacing: 0.3px; margin-bottom: 32px; line-height: 1.6; }
 .co-sec-t { font-size: 12px; font-weight: 600; letter-spacing: 4px; color: var(--gold); text-transform: uppercase; margin-bottom: 16px; }
@@ -621,7 +549,10 @@ body::after {
 .pay-card { position: relative; display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 16px; text-align: left; background: var(--bg2); border: 1px solid rgba(0,0,0,0.1); padding: 18px 20px; cursor: pointer; transition: all 0.25s; font-family: var(--sans); }
 .pay-card:hover { border-color: var(--border-h); background: #f6f6f2; }
 .pay-card.act { border-color: var(--gold); background: rgba(201,168,76,0.06); box-shadow: inset 0 0 0 1px var(--gold); }
-.pay-card-logo { height: 32px; width: auto; display: block; border-radius: 6px; }
+.pay-logo { font-weight: 700; font-size: 15px; letter-spacing: 0.5px; padding: 8px 13px; border-radius: 5px; color: #fff; white-space: nowrap; }
+.pay-wompi { background: #4c2cc9; }
+.pay-addi { background: #16131f; }
+.pay-sistecredito { background: #e30613; }
 .pay-desc { font-size: 13px; color: var(--text-dim); letter-spacing: 0.3px; }
 .pay-badge { font-size: 11px; font-weight: 600; letter-spacing: 1.5px; text-transform: uppercase; color: var(--text-muted); border: 1px solid var(--border); padding: 5px 10px; border-radius: 3px; white-space: nowrap; }
 .pay-check { position: absolute; top: 12px; right: 12px; width: 22px; height: 22px; border-radius: 50%; background: var(--gold); color: #000; font-size: 13px; font-weight: 700; display: none; align-items: center; justify-content: center; }
@@ -649,30 +580,6 @@ body::after {
 .co-help:hover { color: var(--gold); }
 .co-empty { text-align: center; padding: 110px 24px; color: var(--text-muted); }
 
-/* ── ADDI (widget de cuotas) ── */
-.addi-box { width: 100%; }
-.pd-addi { margin: 0 0 26px; }
-.co-addi { margin-top: 4px; }
-.co-addi-lead { font-size: 13px; color: var(--text-dim); line-height: 1.6; margin-bottom: 14px; }
-.co-addi-w { margin-bottom: 12px; }
-.co-addi-note { font-size: 11.5px; color: var(--text-muted); letter-spacing: 0.3px; text-align: center; }
-
-/* ── RESULTADO DE PAGO ── */
-.pay-result-wrap { padding: 70px 24px 110px; background: var(--bg); display: flex; justify-content: center; }
-.pay-result { max-width: 520px; width: 100%; text-align: center; background: var(--bg2); border: 1px solid var(--border); padding: 48px 36px; }
-.pay-result.ok { border-top: 3px solid #2e9e5b; }
-.pay-result.pend { border-top: 3px solid var(--gold); }
-.pay-result.bad { border-top: 3px solid #c0392b; }
-.pr-ic { font-size: 56px; line-height: 1; margin-bottom: 18px; }
-.pr-title { font-family: var(--serif); font-size: 32px; font-weight: 600; margin-bottom: 12px; letter-spacing: 0.4px; }
-.pr-desc { font-size: 14.5px; color: var(--text-dim); line-height: 1.7; margin-bottom: 26px; }
-.pr-data { text-align: left; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); padding: 6px 0; margin-bottom: 28px; }
-.pr-row { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 12px 2px; font-size: 13px; }
-.pr-row span { color: var(--text-muted); letter-spacing: 1.5px; text-transform: uppercase; font-size: 11px; }
-.pr-row b { color: var(--text); font-weight: 600; }
-.pr-tx { font-size: 11px; word-break: break-all; text-align: right; max-width: 60%; }
-.pr-actions { display: flex; flex-direction: column; gap: 12px; }
-
 @media (max-width: 1200px) {
   .co-wrap { padding: 40px 32px 80px; }
 }
@@ -690,36 +597,34 @@ body::after {
   .co-summary { padding: 22px 18px; }
 }
 
-/* ── POPUP SUSCRIPCIÓN (CORREO) ── */
-.nl-overlay { position: fixed; inset: 0; background: rgba(8,8,7,0.74); backdrop-filter: blur(9px); -webkit-backdrop-filter: blur(9px); z-index: 500; display: flex; align-items: center; justify-content: center; padding: 22px; animation: fadeIn 0.3s ease; }
-.nl-modal { position: relative; width: 100%; max-width: 430px; background: linear-gradient(165deg, #17150f 0%, #0c0b09 100%); border: 1px solid rgba(201,168,76,0.42); border-radius: 20px; padding: 46px 38px 30px; text-align: center; box-shadow: 0 40px 100px -20px rgba(0,0,0,0.72), 0 0 90px -42px rgba(201,168,76,0.65); animation: nlIn 0.5s cubic-bezier(0.25,0.46,0.45,0.94); overflow: hidden; }
-.nl-modal::before { content: ''; position: absolute; top: -42%; left: 50%; transform: translateX(-50%); width: 135%; height: 82%; background: radial-gradient(ellipse at center, rgba(201,168,76,0.18), transparent 64%); pointer-events: none; }
-@keyframes nlIn { from { opacity: 0; transform: translateY(26px) scale(0.95); } to { opacity: 1; transform: translateY(0) scale(1); } }
-.nl-close { position: absolute; top: 14px; right: 16px; width: 34px; height: 34px; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12); border-radius: 50%; color: rgba(255,255,255,0.6); font-size: 14px; cursor: pointer; transition: all 0.25s; z-index: 3; display: flex; align-items: center; justify-content: center; }
-.nl-close:hover { background: rgba(255,255,255,0.13); color: #fff; }
-.nl-crown { position: relative; display: flex; justify-content: center; margin-bottom: 14px; }
-.nl-eyebrow { position: relative; font-family: var(--sans); font-size: 11px; font-weight: 600; letter-spacing: 4px; text-transform: uppercase; color: var(--gold); margin-bottom: 10px; }
-.nl-title { position: relative; font-family: var(--serif); font-size: 34px; font-weight: 600; color: #f5f0e4; line-height: 1.12; margin-bottom: 14px; }
+/* ── BARRA DE BÚSQUEDA (LUPA) ── */
+.search-bar { position: sticky; top: 72px; z-index: 99; background: rgba(12,12,11,0.98); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border-bottom: 1px solid var(--border); padding: 14px 52px; animation: searchDrop 0.25s ease; }
+@keyframes searchDrop { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: none; } }
+.search-inner { max-width: 760px; margin: 0 auto; display: flex; align-items: center; gap: 10px; background: rgba(255,255,255,0.07); border: 1px solid var(--border); border-radius: 4px; padding: 4px 8px 4px 16px; transition: border-color 0.2s, box-shadow 0.2s; }
+.search-inner:focus-within { border-color: var(--gold); box-shadow: 0 0 0 1px var(--gold); }
+.search-ic { font-size: 16px; opacity: 0.8; flex-shrink: 0; }
+.search-input { flex: 1; min-width: 0; background: none; border: none; outline: none; color: #fff; font-family: var(--sans); font-size: 15px; font-weight: 300; padding: 12px 0; letter-spacing: 0.3px; }
+.search-input::placeholder { color: rgba(255,255,255,0.45); }
+.search-clear { background: none; border: none; color: rgba(255,255,255,0.6); font-size: 14px; cursor: pointer; width: 30px; height: 30px; border-radius: 50%; transition: all 0.2s; flex-shrink: 0; line-height: 1; }
+.search-clear:hover { color: #fff; background: rgba(255,255,255,0.12); }
+.search-close { background: var(--gold); color: #000; border: none; font-size: 11px; font-weight: 600; letter-spacing: 2px; text-transform: uppercase; padding: 10px 16px; cursor: pointer; border-radius: 3px; transition: all 0.25s; white-space: nowrap; flex-shrink: 0; }
+.search-close:hover { background: var(--gold-l); }
+@media (max-width: 768px) { .search-bar { top: 64px; padding: 12px 14px; } .search-input { font-size: 14px; padding: 11px 0; } .search-close { padding: 9px 12px; } }
+
+/* ── SUSCRIPCIÓN (al final de la página) ── */
+.newsletter { background: var(--bg2); border-top: 1px solid var(--border); padding: 66px 52px; }
+.nl-inner { max-width: 640px; margin: 0 auto; text-align: center; }
+.nl-eyebrow { font-size: 12px; font-weight: 500; letter-spacing: 6px; color: var(--gold); text-transform: uppercase; margin-bottom: 14px; }
+.nl-title { font-family: var(--serif); font-size: 42px; font-weight: 300; margin-bottom: 12px; letter-spacing: 0.5px; }
 .nl-title span { color: var(--gold); font-style: italic; }
-.nl-text { position: relative; font-size: 14px; line-height: 1.7; color: rgba(245,240,228,0.74); margin-bottom: 26px; font-weight: 400; }
-.nl-text b { color: var(--gold-l); font-weight: 700; }
-.nl-form { position: relative; display: flex; flex-direction: column; gap: 12px; margin-bottom: 14px; }
-.nl-input { width: 100%; background: rgba(255,255,255,0.05); border: 1px solid rgba(201,168,76,0.35); color: #fff; padding: 15px 18px; font-size: 15px; font-family: var(--sans); border-radius: 11px; outline: none; transition: all 0.25s; text-align: center; }
-.nl-input::placeholder { color: rgba(255,255,255,0.4); }
-.nl-input:focus { border-color: var(--gold); background: rgba(201,168,76,0.08); box-shadow: 0 0 0 3px rgba(201,168,76,0.13); }
-.nl-btn { width: 100%; background: linear-gradient(135deg, var(--gold-l), var(--gold)); color: #1a1208; border: none; padding: 16px; font-size: 13px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; font-family: var(--sans); border-radius: 11px; cursor: pointer; transition: all 0.3s; }
-.nl-btn:hover { box-shadow: 0 12px 34px rgba(201,168,76,0.42); transform: translateY(-2px); filter: brightness(1.06); }
-.nl-skip { position: relative; background: none; border: none; color: rgba(255,255,255,0.46); font-family: var(--sans); font-size: 12px; letter-spacing: 0.5px; cursor: pointer; padding: 8px; transition: color 0.2s; text-decoration: underline; text-underline-offset: 3px; }
-.nl-skip:hover { color: rgba(255,255,255,0.82); }
-.nl-mini { position: relative; font-size: 11px; color: rgba(255,255,255,0.4); letter-spacing: 0.4px; margin-top: 12px; }
-.nl-success { position: relative; padding: 16px 0 8px; }
-.nl-check { width: 66px; height: 66px; border-radius: 50%; background: linear-gradient(135deg, var(--gold-l), var(--gold)); color: #1a1208; font-size: 33px; font-weight: 700; display: flex; align-items: center; justify-content: center; margin: 0 auto 20px; box-shadow: 0 0 40px rgba(201,168,76,0.5); animation: nlPop 0.45s cubic-bezier(0.34,1.56,0.64,1); }
-@keyframes nlPop { from { transform: scale(0); } to { transform: scale(1); } }
-@media (max-width: 480px) {
-  .nl-modal { padding: 40px 24px 26px; border-radius: 16px; }
-  .nl-title { font-size: 28px; }
-  .nl-text { font-size: 13.5px; }
-}
+.nl-text { font-size: 14px; color: var(--text-dim); line-height: 1.7; margin-bottom: 28px; font-weight: 300; }
+.nl-form { display: flex; gap: 10px; max-width: 480px; margin: 0 auto; }
+.nl-input { flex: 1; min-width: 0; background: var(--bg3); border: 1px solid rgba(0,0,0,0.12); color: var(--text); padding: 15px 18px; font-size: 15px; outline: none; transition: border-color 0.25s, box-shadow 0.25s; font-family: var(--sans); font-weight: 300; }
+.nl-input:focus { border-color: var(--gold); box-shadow: 0 0 0 1px rgba(201,168,76,0.4); }
+.nl-btn { background: var(--gold); color: #000; border: none; padding: 0 30px; font-size: 12px; font-weight: 600; letter-spacing: 2.5px; text-transform: uppercase; cursor: pointer; transition: all 0.3s; white-space: nowrap; }
+.nl-btn:hover { background: var(--gold-l); box-shadow: 0 10px 28px rgba(201,168,76,0.3); transform: translateY(-2px); }
+.nl-note { font-size: 12px; color: var(--text-muted); letter-spacing: 0.5px; margin-top: 14px; }
+@media (max-width: 768px) { .newsletter { padding: 48px 16px; } .nl-title { font-size: 30px; } .nl-form { flex-direction: column; } .nl-btn { padding: 14px; } }
 `;
 
 /* ──────────────────────────────────────────────────────────────
@@ -753,34 +658,33 @@ const NoImg = () => (
   </div>
 );
 
-/* Medios de pago (logos oficiales). */
-const PAY_METHODS = [
-  { id: "wompi", label: "Wompi", logo: logoWompi },
-  { id: "addi", label: "Addi", logo: logoAddi },
-  { id: "sistecredito", label: "Sistecrédito", logo: logoSistecredito },
-];
-const PayBadges = ({ className = "" }) => (
-  <div className={`pay-badges ${className}`}>
-    {PAY_METHODS.map((m) => (
-      <span key={m.id} className="pay-chip" title={m.label}>
-        <img className="pay-img" src={m.logo} alt={m.label} />
-      </span>
-    ))}
-  </div>
-);
-
 const EMPTY_FORM = {
   name: "", brand: "", subtitle: "", size: "", price: "",
   category: "Para Él", collection: "Árabes", promo: false,
   description: "", image: "",
 };
 
-const FILTER_TABS = ["Todos", "Para Él", "Para Ella", "Unisex", "Diseñador", "Árabes", "2 × $300.000"];
+const FILTER_TABS = ["Todos", "Para Él", "Para Ella", "Unisex", "Destacados", "Diseñador", "Árabes", "2 × $300.000"];
 const GENDERS = ["Para Él", "Para Ella", "Unisex"];
 const PROMO_LABEL = "2 X $300.000";
 
+/* Selección curada de "Productos destacados" (por slug del catálogo original) */
+const FEATURED_SLUGS = [
+  "dior-sauvage-649999",
+  "valentino-uomo-born-in-roma-649999",
+  "jean-paul-gaultier-le-male-elixir-479999",
+  "ariana-grande-cloud-299999",
+  "azzaro-chrome-azure-229900",
+  "lacoste-blanc-319999",
+  "lattafa-khamrah-190000",
+  "lattafa-asad-190000",
+  "lattafa-yara-190000",
+  "armaf-club-de-nuit-intense-man-190000",
+];
+
 function matchFilter(p, f) {
   if (f === "Todos") return true;
+  if (f === "Destacados") return FEATURED_SLUGS.includes(p.slug);
   if (GENDERS.includes(f)) return p.category === f;
   if (f === "2 × $300.000") return !!p.promo;
   if (f === "Diseñador" || f === "Árabes") return p.collection === f;
@@ -818,18 +722,15 @@ export default function ReyDelAroma() {
   const [appReady, setAppReady] = useState(false);
   const [slide, setSlide] = useState(0);
   const [pauseSlide, setPauseSlide] = useState(false);
-
-  /* ── POPUP DE SUSCRIPCIÓN (correo) ── */
-  const [newsletterOpen, setNewsletterOpen] = useState(false);
-  const [newsletterEmail, setNewsletterEmail] = useState("");
-  const [newsletterDone, setNewsletterDone] = useState(false);
+  const [search, setSearch] = useState("");
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [subEmail, setSubEmail] = useState("");
 
   /* ── CHECKOUT / PAGO ── */
   const [checkoutItems, setCheckoutItems] = useState([]);
   const [payMethod, setPayMethod] = useState("wompi");
   const [coForm, setCoForm] = useState({ name: "", phone: "", email: "", city: "", address: "" });
   const [placing, setPlacing] = useState(false);
-  const [payResult, setPayResult] = useState(null); // resultado tras volver de Wompi
 
   const banners = [
     { src: banner1, alt: "Más de 50 referencias disponibles", filter: "Todos" },
@@ -860,37 +761,6 @@ export default function ReyDelAroma() {
 
   useEffect(() => { const t = requestAnimationFrame(() => setAppReady(true)); return () => cancelAnimationFrame(t); }, []);
 
-  /* ── RETORNO DESDE WOMPI ──
-     Wompi devuelve al cliente con ?wompi=1&id=<txId>&env=...
-     Consultamos el estado real de la transacción a la API pública. */
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const id = params.get("id");
-    const fromWompi = params.get("wompi") === "1" || !!params.get("env");
-    if (!id || !fromWompi) return;
-
-    setView("pago-resultado");
-    setPayResult({ loading: true });
-    // limpia la URL para que un refresh no reabra el resultado
-    window.history.replaceState({}, "", window.location.pathname);
-
-    fetch(`${WOMPI_API}/transactions/${id}`)
-      .then((r) => r.json())
-      .then((j) => {
-        const t = j?.data || {};
-        setPayResult({
-          loading: false,
-          status: t.status || "UNKNOWN",
-          reference: t.reference || "",
-          txId: t.id || id,
-          amount: (t.amount_in_cents || 0) / 100,
-          method: t.payment_method_type || "",
-        });
-        try { localStorage.removeItem("rda-cart-v1"); } catch (_) {}
-      })
-      .catch(() => setPayResult({ loading: false, status: "ERROR", txId: id }));
-  }, []);
-
   /* auto-avance del carrusel */
   useEffect(() => {
     if (pauseSlide || view !== "store") return;
@@ -900,34 +770,15 @@ export default function ReyDelAroma() {
 
   const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(null), 2800); };
 
-  /* mostrar el popup de correo poco después de entrar (solo la 1ª vez) */
-  useEffect(() => {
-    let already = false;
-    try { already = !!localStorage.getItem("rda-newsletter"); } catch (_) {}
-    if (already || view === "admin") return;
-    const t = setTimeout(() => setNewsletterOpen(true), 1500);
-    return () => clearTimeout(t);
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const closeNewsletter = () => {
-    setNewsletterOpen(false);
-    try { localStorage.setItem("rda-newsletter", "dismissed"); } catch (_) {}
-  };
-  const submitNewsletter = () => {
-    const email = newsletterEmail.trim();
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return showToast("Escribe un correo válido");
-    try {
-      const list = JSON.parse(localStorage.getItem("rda-subscribers") || "[]");
-      if (!list.includes(email)) list.push(email);
-      localStorage.setItem("rda-subscribers", JSON.stringify(list));
-      localStorage.setItem("rda-newsletter", "subscribed");
-    } catch (_) {}
-    setNewsletterDone(true);
-    setTimeout(() => setNewsletterOpen(false), 2400);
-  };
-
   const goCatalog = () => document.getElementById("cat")?.scrollIntoView({ behavior: "smooth" });
-  const quickFilter = (f) => { setView("store"); setCatFilter(f); setMenuOpen(false); setTimeout(goCatalog, 80); };
+  const quickFilter = (f) => { setView("store"); setCatFilter(f); setSearch(""); setSearchOpen(false); setMenuOpen(false); setTimeout(goCatalog, 80); };
+  const submitSearch = () => { setView("store"); setMenuOpen(false); setTimeout(goCatalog, 80); };
+  const subscribe = () => {
+    const v = subEmail.trim();
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v)) return showToast("Escribe un correo válido");
+    setSubEmail("");
+    showToast("¡Gracias por suscribirte! 👑");
+  };
 
   const openProduct = (p) => {
     setSelectedProduct(p);
@@ -951,11 +802,15 @@ export default function ReyDelAroma() {
   };
 
   const removeFromCart = (id, size) => setCart((prev) => prev.filter((i) => !(i.id === id && i.size === size)));
-  const updateQty = (id, size, delta) =>
-    setCart((prev) => prev.map((i) => (i.id === id && i.size === size ? { ...i, qty: Math.max(1, i.qty + delta) } : i)));
   const cartCount = cart.reduce((s, i) => s + i.qty, 0);
   const cartTotal = cart.reduce((s, i) => s + i.price * i.qty, 0);
-  const filtered = products.filter((p) => matchFilter(p, catFilter));
+  const q = search.trim().toLowerCase();
+  const filtered = q
+    ? products.filter((p) =>
+        [p.name, p.fullName, p.brand, p.collection, p.category, p.subtitle]
+          .filter(Boolean).join(" ").toLowerCase().includes(q)
+      )
+    : products.filter((p) => matchFilter(p, catFilter));
 
   /* ── PAGO / CHECKOUT ── */
   const goCheckout = (items) => {
@@ -984,24 +839,29 @@ export default function ReyDelAroma() {
     } catch (_) {}
 
     if (payMethod === "wompi") {
-      if (!WOMPI.publicKey) return showToast("Falta configurar la llave de Wompi");
+      if (!PAYMENTS.wompi.publicKey) return showToast("Falta configurar la llave de Wompi");
       setPlacing(true);
       try {
         const url = await buildWompiUrl({ amount: total, reference, email: coForm.email, phone: coForm.phone, fullName: coForm.name });
         window.location.href = url;
       } catch (_) {
         setPlacing(false);
-        showToast("No se pudo iniciar el pago. Intenta de nuevo.");
+        showToast("No se pudo iniciar el pago");
       }
       return;
     }
+    if (payMethod === "addi") {
+      if (!PAYMENTS.addi.url) return showToast("Falta configurar el enlace de Addi");
+      openWithParams(PAYMENTS.addi.url, { amount: total, reference });
+      showToast("Te llevamos a Addi para terminar el pago");
+      return;
+    }
     if (payMethod === "sistecredito") {
-      if (!SISTECREDITO.url) return showToast("Falta configurar el enlace de Sistecrédito");
-      openWithParams(SISTECREDITO.url, { amount: total, reference });
+      if (!PAYMENTS.sistecredito.url) return showToast("Falta configurar el enlace de Sistecrédito");
+      openWithParams(PAYMENTS.sistecredito.url, { amount: total, reference });
       showToast("Te llevamos a Sistecrédito para terminar el pago");
       return;
     }
-    // Addi se gestiona con el widget en el resumen (no pasa por aquí).
   };
 
   /* ── ADMIN ── */
@@ -1070,11 +930,10 @@ export default function ReyDelAroma() {
     { icon: "💳", text: "Paga a cuotas con Addi y Sistecrédito" },
   ];
   const featBadges = [
-    { img: feat1, cap: "100% Originales" },
-    { img: feat2, cap: "Calidad Premium" },
-    { img: feat3, cap: "Los más vendidos" },
-    { img: feat4, cap: "2 × $300.000", filter: "2 × $300.000" },
-    { img: feat5, cap: "+45 referencias" },
+    { img: feat1, cap: "Hombre", filter: "Para Él" },
+    { img: feat2, cap: "Mujer", filter: "Para Ella" },
+    { img: feat4, cap: "Promo", filter: "2 × $300.000" },
+    { img: feat3, cap: "Productos Destacados", filter: "Destacados" },
   ];
   const collections = [
     { cat: "Colección", name: "Diseñador", tag: "Las casas más reconocidas del mundo.", img: banner1, filter: "Diseñador" },
@@ -1099,10 +958,6 @@ export default function ReyDelAroma() {
           </div>
         ))}
       </div>
-      <div className="pay-section">
-        <div className="pay-label">Medios de pago aceptados</div>
-        <PayBadges />
-      </div>
       <div className="footer-bot">
         <div className="footer-logo">REY DEL AROMA</div>
         <div className="footer-tag">Tu esencia, tu reino</div>
@@ -1124,8 +979,7 @@ export default function ReyDelAroma() {
           <div className="hc-track" style={{ transform: `translateX(-${slide * 100}%)` }}>
             {banners.map((b, i) => (
               <button key={i} className="hc-slide" onClick={() => quickFilter(b.filter)} aria-label={b.alt}>
-                <span className="hc-slide-bg" style={{ backgroundImage: `url(${b.src})` }} aria-hidden="true" />
-                <img src={b.src} alt={b.alt} className="hc-slide-img" loading={i === 0 ? "eager" : "lazy"} />
+                <img src={b.src} alt={b.alt} loading={i === 0 ? "eager" : "lazy"} />
               </button>
             ))}
           </div>
@@ -1152,17 +1006,22 @@ export default function ReyDelAroma() {
         ))}
       </section>
 
-      {/* Filtros */}
+      {/* Filtros por categoría */}
       <div className="filters">
         {FILTER_TABS.map((c) => (
-          <button key={c} className={`ftab${catFilter === c ? " act" : ""}`} onClick={() => setCatFilter(c)}>{c}</button>
+          <button key={c} className={`ftab${!q && catFilter === c ? " act" : ""}`} onClick={() => { setSearch(""); setCatFilter(c); }}>{c}</button>
         ))}
       </div>
 
       {/* Productos */}
       <div className="products-wrap" id="cat">
         <div className="sec-hdr">
-          <h2 className="sec-title">{catFilter === "Todos" ? <>Nuestra <span>Colección</span></> : <><span>{catFilter}</span></>}</h2>
+          <h2 className="sec-title">
+            {q ? <>Resultados para <span>«{search.trim()}»</span></>
+              : catFilter === "Todos" ? <>Nuestra <span>Colección</span></>
+              : catFilter === "Destacados" ? <>Productos <span>Destacados</span></>
+              : <><span>{catFilter}</span></>}
+          </h2>
           <span className="sec-cnt">{filtered.length} fragancia{filtered.length !== 1 ? "s" : ""}</span>
         </div>
         <div className="pgrid">
@@ -1187,7 +1046,7 @@ export default function ReyDelAroma() {
           {filtered.length === 0 && (
             <div className="empty-state">
               <div className="empty-state-icon">🫙</div>
-              <p>No hay productos en esta categoría</p>
+              <p>{q ? `No encontramos perfumes para «${search.trim()}»` : "No hay productos en esta categoría"}</p>
             </div>
           )}
         </div>
@@ -1214,6 +1073,28 @@ export default function ReyDelAroma() {
           ))}
         </div>
       </div>
+
+      {/* Suscripción — al final de la página, sin ventana emergente */}
+      <section className="newsletter">
+        <div className="nl-inner">
+          <div className="nl-eyebrow">Únete al reino</div>
+          <h3 className="nl-title">Recibe <span>ofertas</span> y novedades</h3>
+          <p className="nl-text">Suscríbete y entérate antes que nadie de lanzamientos, descuentos y promociones exclusivas de Rey del Aroma.</p>
+          <div className="nl-form">
+            <input
+              className="nl-input"
+              type="email"
+              placeholder="Tu correo electrónico"
+              value={subEmail}
+              onChange={(e) => setSubEmail(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && subscribe()}
+              aria-label="Correo para suscripción"
+            />
+            <button className="nl-btn" onClick={subscribe}>Suscribirme</button>
+          </div>
+          <div className="nl-note">No compartimos tu correo. Cancela cuando quieras.</div>
+        </div>
+      </section>
 
       <Footer />
     </>
@@ -1262,7 +1143,7 @@ export default function ReyDelAroma() {
               </div>
             )}
 
-            <AddiWidget price={p.price} className="pd-addi" />
+            <div className="pd-desc">{p.description || describe(p)}</div>
 
             {p.size && (
               <>
@@ -1285,9 +1166,6 @@ export default function ReyDelAroma() {
               <button className="buy-now-btn" onClick={() => buyNow(p, p.size || "", qty)}>Comprar ahora →</button>
             </div>
 
-            <div className="pd-sec-t">Sobre la fragancia</div>
-            <div className="pd-desc">{p.description || describe(p)}</div>
-
             <div className="feats">
               {[
                 { ic: "💎", lbl: "Autenticidad", val: "100% Original" },
@@ -1308,49 +1186,6 @@ export default function ReyDelAroma() {
     );
   };
 
-  /* ── VISTA RESULTADO DE PAGO (retorno de Wompi) ── */
-  const PaymentResultView = () => {
-    const r = payResult || {};
-    const goStore = () => { setPayResult(null); setView("store"); quickFilter("Todos"); window.scrollTo({ top: 0 }); };
-
-    if (r.loading) {
-      return (
-        <div className="co-empty">
-          <div className="empty-icon">⏳</div>
-          <p style={{ fontSize: 15, letterSpacing: 1 }}>Confirmando tu pago…</p>
-        </div>
-      );
-    }
-
-    const map = {
-      APPROVED: { ic: "✅", t: "¡Pago aprobado!", d: "Recibimos tu pago correctamente. Pronto te contactamos para coordinar el envío.", cls: "ok" },
-      PENDING: { ic: "⏳", t: "Pago en proceso", d: "Tu pago está siendo confirmado. Te avisaremos apenas se acredite.", cls: "pend" },
-      DECLINED: { ic: "❌", t: "Pago rechazado", d: "El pago no pudo completarse. Puedes intentar de nuevo o escribirnos por WhatsApp.", cls: "bad" },
-      VOIDED: { ic: "↩️", t: "Pago anulado", d: "La transacción fue anulada. Si crees que es un error, escríbenos.", cls: "bad" },
-      ERROR: { ic: "⚠️", t: "Hubo un problema", d: "No pudimos confirmar el estado del pago. Escríbenos por WhatsApp y lo verificamos.", cls: "bad" },
-    };
-    const info = map[r.status] || map.ERROR;
-
-    return (
-      <div className="pay-result-wrap">
-        <div className={`pay-result ${info.cls}`}>
-          <div className="pr-ic">{info.ic}</div>
-          <h2 className="pr-title">{info.t}</h2>
-          <p className="pr-desc">{info.d}</p>
-          <div className="pr-data">
-            {r.reference && <div className="pr-row"><span>Referencia</span><b>{r.reference}</b></div>}
-            {r.amount > 0 && <div className="pr-row"><span>Monto</span><b>{cop(r.amount)}</b></div>}
-            {r.txId && <div className="pr-row"><span>Transacción</span><b className="pr-tx">{r.txId}</b></div>}
-          </div>
-          <div className="pr-actions">
-            <button className="btn-g" onClick={goStore} style={{ justifyContent: "center" }}>Volver a la tienda</button>
-            <a className="btn-o" href={waLink(`Hola Rey del Aroma 👑, hice un pago con referencia ${r.reference || r.txId || ""} y quiero confirmar mi pedido.`)} target="_blank" rel="noreferrer" style={{ justifyContent: "center", textDecoration: "none" }}>Escribir por WhatsApp</a>
-          </div>
-        </div>
-      </div>
-    );
-  };
-
   /* ── VISTA CHECKOUT / PAGO ── */
   const CheckoutView = () => {
     if (!checkoutItems.length) {
@@ -1364,9 +1199,9 @@ export default function ReyDelAroma() {
     }
     const total = checkoutItems.reduce((s, i) => s + i.price * i.qty, 0);
     const methods = [
-      { id: "wompi", name: "Wompi", logo: logoWompi, desc: "Tarjeta · PSE · Nequi · Bancolombia", badge: "Pago inmediato" },
-      { id: "addi", name: "Addi", logo: logoAddi, desc: "Paga a cuotas, sin tarjeta", badge: "A cuotas" },
-      { id: "sistecredito", name: "Sistecrédito", logo: logoSistecredito, desc: "Crédito en cuotas fijas", badge: "A crédito" },
+      { id: "wompi", name: "Wompi", desc: "Tarjeta · PSE · Nequi · Bancolombia", badge: "Pago inmediato" },
+      { id: "addi", name: "Addi", desc: "Paga a cuotas, sin tarjeta", badge: "A cuotas" },
+      { id: "sistecredito", name: "Sistecrédito", desc: "Crédito en cuotas fijas", badge: "A crédito" },
     ].filter((m) => PAYMENTS[m.id]?.enabled);
     const activeName = methods.find((m) => m.id === payMethod)?.name || "";
 
@@ -1397,7 +1232,7 @@ export default function ReyDelAroma() {
             <div className="pay-methods">
               {methods.map((m) => (
                 <button key={m.id} type="button" className={`pay-card${payMethod === m.id ? " act" : ""}`} onClick={() => setPayMethod(m.id)}>
-                  <img className="pay-card-logo" src={m.logo} alt={m.name} />
+                  <span className={`pay-logo pay-${m.id}`}>{m.name}</span>
                   <span className="pay-desc">{m.desc}</span>
                   <span className="pay-badge">{m.badge}</span>
                   <span className="pay-check">✓</span>
@@ -1422,20 +1257,10 @@ export default function ReyDelAroma() {
               ))}
             </div>
             <div className="co-total-row"><span>Total a pagar</span><span className="co-total">{cop(total)}</span></div>
-            {payMethod === "addi" && PAYMENTS.addi.enabled ? (
-              <div className="co-addi">
-                <p className="co-addi-lead">Solicita tu cupo en minutos, 100% en línea. Al aprobarte, Addi paga tu compra y tú la difieres a cuotas.</p>
-                <AddiWidget price={total} className="co-addi-w" />
-                <p className="co-addi-note">Toca el botón de Addi para conocer tus cuotas y continuar.</p>
-              </div>
-            ) : (
-              <>
-                <button className="co-pay-btn" onClick={placeOrder} disabled={placing}>
-                  {placing ? "Redirigiendo a la pasarela…" : `Pagar con ${activeName}`}
-                </button>
-                <div className="co-secure">🔒 Pago seguro · Envíos a toda Colombia</div>
-              </>
-            )}
+            <button className="co-pay-btn" onClick={placeOrder} disabled={placing}>
+              {placing ? "Redirigiendo a la pasarela…" : `Pagar con ${activeName}`}
+            </button>
+            <div className="co-secure">🔒 Pago seguro · Envíos a toda Colombia</div>
             <a className="co-help" href={waLink("Hola Rey del Aroma 👑, tengo una duda con mi compra.")} target="_blank" rel="noreferrer">¿Tienes dudas? Escríbenos</a>
           </aside>
         </div>
@@ -1447,15 +1272,14 @@ export default function ReyDelAroma() {
   const AdminView = () => {
     if (!adminAuth) {
       return (
-        <div className="login-screen">
-          <div className="login-card">
-            <img src={logoPrincipal} className="login-logo" alt="Rey del Aroma" />
-            <div className="login-title">Panel <span>Admin</span></div>
-            <div className="login-sub">Ingresa la contraseña para continuar</div>
-            <div className="login-form">
-              <input className="login-input" type="password" placeholder="Contraseña" value={adminPw} onChange={(e) => setAdminPw(e.target.value)} onKeyDown={(e) => e.key === "Enter" && adminLogin()} autoFocus />
-              <button className="login-btn" onClick={adminLogin}>Ingresar →</button>
-            </div>
+        <div className="login-wrap">
+          <Crown size={50} />
+          <div className="login-title" style={{ marginTop: 20 }}>Panel <span style={{ color: "var(--gold)", fontStyle: "italic" }}>Admin</span></div>
+          <div className="login-sub">Ingresa la contraseña para continuar</div>
+          <div className="login-form">
+            <input className="fi" type="password" placeholder="Contraseña" value={adminPw} onChange={(e) => setAdminPw(e.target.value)} onKeyDown={(e) => e.key === "Enter" && adminLogin()} />
+            <button className="btn-g" onClick={adminLogin} style={{ justifyContent: "center" }}>Ingresar →</button>
+            <div className="hint">Contraseña por defecto: admin123</div>
           </div>
         </div>
       );
@@ -1594,9 +1418,10 @@ export default function ReyDelAroma() {
               <button className="nl" onClick={() => quickFilter("2 × $300.000")}>2 × $300.000</button>
             </div>
             <div className="nav-r">
+              <button className={`icon-btn${searchOpen ? " act" : ""}`} onClick={() => { setSearchOpen((o) => !o); setMenuOpen(false); }} aria-label="Buscar">🔍</button>
               <button className="icon-btn" onClick={() => setCartOpen(true)} aria-label="Carrito">🛒 {cartCount > 0 && <span className="cbadge">{cartCount}</span>}</button>
               <button className="icon-btn" onClick={() => setView("admin")} title="Panel Admin" aria-label="Admin">⚙️</button>
-              <button className={`hamburger${menuOpen ? " open" : ""}`} onClick={() => setMenuOpen((o) => !o)} aria-label="Menú">
+              <button className={`hamburger${menuOpen ? " open" : ""}`} onClick={() => { setMenuOpen((o) => !o); setSearchOpen(false); }} aria-label="Menú">
                 <span className="ham-line" /><span className="ham-line" /><span className="ham-line" />
               </button>
             </div>
@@ -1619,10 +1444,32 @@ export default function ReyDelAroma() {
         )}
       </nav>
 
+      {view !== "admin" && searchOpen && (
+        <div className="search-bar">
+          <div className="search-inner">
+            <span className="search-ic" aria-hidden="true">🔍</span>
+            <input
+              className="search-input"
+              autoFocus
+              type="text"
+              placeholder="Buscar perfume, marca…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") submitSearch();
+                if (e.key === "Escape") { setSearch(""); setSearchOpen(false); }
+              }}
+              aria-label="Buscar productos"
+            />
+            {search && <button className="search-clear" onClick={() => setSearch("")} aria-label="Limpiar">✕</button>}
+            <button className="search-close" onClick={() => setSearchOpen(false)} aria-label="Cerrar búsqueda">Cerrar</button>
+          </div>
+        </div>
+      )}
+
       {view === "store" && StoreView()}
       {view === "product" && ProductDetailView()}
       {view === "checkout" && CheckoutView()}
-      {view === "pago-resultado" && PaymentResultView()}
       {view === "admin" && AdminView()}
 
       {cartOpen && (
@@ -1641,17 +1488,10 @@ export default function ReyDelAroma() {
                   <div className="ci-img">{item.image ? <img src={item.image} alt={item.name} className="ci-real-img" /> : <NoImg />}</div>
                   <div className="ci-info">
                     <div className="ci-name">{item.name}</div>
-                    <div className="ci-sz">{item.brand}{item.size ? ` · ${item.size}` : ""}</div>
-                    <div className="ci-row">
-                      <div className="ci-qty">
-                        <button className="ci-qbtn" onClick={() => updateQty(item.id, item.size, -1)} disabled={item.qty <= 1} aria-label="Quitar uno">−</button>
-                        <span className="ci-qn">{item.qty}</span>
-                        <button className="ci-qbtn" onClick={() => updateQty(item.id, item.size, 1)} aria-label="Agregar uno">+</button>
-                      </div>
-                      <div className="ci-price">{cop(item.price * item.qty)} COP</div>
-                    </div>
+                    <div className="ci-sz">{item.brand}{item.size ? ` · ${item.size}` : ""} · Cant: {item.qty}</div>
+                    <div className="ci-price">{cop(item.price * item.qty)} COP</div>
                   </div>
-                  <button className="ci-rm" onClick={() => removeFromCart(item.id, item.size)} aria-label="Eliminar producto">✕</button>
+                  <button className="ci-rm" onClick={() => removeFromCart(item.id, item.size)}>✕</button>
                 </div>
               ))}
             </div>
@@ -1660,8 +1500,7 @@ export default function ReyDelAroma() {
                 <div className="cart-tr"><span className="cart-tl">Total</span><span className="cart-ta">{cop(cartTotal)}</span></div>
                 <button className="co-checkout-btn" onClick={() => goCheckout(cart)}>Finalizar compra →</button>
                 <button className="cart-keep" onClick={() => setCartOpen(false)}>← Seguir comprando</button>
-                <div className="cart-note">Pago 100% seguro</div>
-                <PayBadges className="sm" />
+                <div className="cart-note">Paga seguro con Wompi, Addi o Sistecrédito.</div>
               </div>
             )}
           </div>
@@ -1681,42 +1520,6 @@ export default function ReyDelAroma() {
             <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.245 2.248 3.481 5.236 3.48 8.414-.003 6.557-5.338 11.892-11.893 11.892-1.99-.001-3.951-.5-5.688-1.448l-6.305 1.654zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884-.001 2.225.651 3.891 1.746 5.634l-.999 3.648 3.742-.981zm11.387-5.464c-.074-.124-.272-.198-.57-.347-.297-.149-1.758-.868-2.031-.967-.272-.099-.47-.149-.669.149-.198.297-.768.967-.941 1.165-.173.198-.347.223-.644.074-.297-.149-1.255-.462-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.297-.347.446-.521.151-.172.2-.296.3-.495.099-.198.05-.372-.025-.521-.075-.148-.669-1.611-.916-2.206-.242-.579-.487-.501-.669-.51l-.57-.01c-.198 0-.52.074-.792.372s-1.04 1.016-1.04 2.479 1.065 2.876 1.213 3.074c.149.198 2.095 3.2 5.076 4.487.709.306 1.263.489 1.694.626.712.226 1.36.194 1.872.118.571-.085 1.758-.719 2.006-1.413.248-.695.248-1.29.173-1.414z" />
           </svg>
         </a>
-      )}
-
-      {newsletterOpen && (
-        <div className="nl-overlay" onClick={closeNewsletter}>
-          <div className="nl-modal" onClick={(e) => e.stopPropagation()}>
-            <button className="nl-close" onClick={closeNewsletter} aria-label="Cerrar">✕</button>
-            {!newsletterDone ? (
-              <>
-                <div className="nl-crown"><Crown size={48} /></div>
-                <div className="nl-eyebrow">Club Rey del Aroma</div>
-                <h3 className="nl-title">Únete a la <span>realeza</span></h3>
-                <p className="nl-text">Regístrate y recibe <b>descuentos exclusivos</b>, promociones y los <b>nuevos lanzamientos</b> antes que nadie.</p>
-                <div className="nl-form">
-                  <input
-                    className="nl-input"
-                    type="email"
-                    placeholder="tu@correo.com"
-                    value={newsletterEmail}
-                    onChange={(e) => setNewsletterEmail(e.target.value)}
-                    onKeyDown={(e) => e.key === "Enter" && submitNewsletter()}
-                    autoFocus
-                  />
-                  <button className="nl-btn" onClick={submitNewsletter}>Quiero mis descuentos →</button>
-                </div>
-                <button className="nl-skip" onClick={closeNewsletter}>Ahora no, gracias</button>
-                <div className="nl-mini">🔒 Tus datos están seguros · Sin spam</div>
-              </>
-            ) : (
-              <div className="nl-success">
-                <div className="nl-check">✓</div>
-                <h3 className="nl-title">¡Bienvenido al reino! 👑</h3>
-                <p className="nl-text">Te avisaremos de cada promoción y lanzamiento. ¡Gracias por registrarte!</p>
-              </div>
-            )}
-          </div>
-        </div>
       )}
 
       {toast && <div className="toast">{toast}</div>}
