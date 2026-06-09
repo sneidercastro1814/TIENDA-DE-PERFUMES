@@ -1,10 +1,10 @@
-const crypto = require("crypto");
+import crypto from "node:crypto";
 
 // Genera la firma de integridad de Wompi EN EL SERVIDOR.
-// El secreto nunca toca el navegador.
-exports.handler = async (event) => {
-  if (event.httpMethod !== "POST") {
-    return { statusCode: 405, body: "Method Not Allowed" };
+// El secreto WOMPI_INTEGRITY_SECRET nunca llega al navegador.
+export default async (req) => {
+  if (req.method !== "POST") {
+    return new Response("Method Not Allowed", { status: 405 });
   }
 
   try {
@@ -13,21 +13,21 @@ exports.handler = async (event) => {
       amountInCents,
       currency = "COP",
       expirationTime, // opcional (ISO 8601), solo si usas expiración
-    } = JSON.parse(event.body || "{}");
+    } = await req.json();
 
     if (!reference || !amountInCents) {
-      return {
-        statusCode: 400,
-        body: JSON.stringify({ error: "reference y amountInCents son obligatorios" }),
-      };
+      return Response.json(
+        { error: "reference y amountInCents son obligatorios" },
+        { status: 400 }
+      );
     }
 
     const integritySecret = process.env.WOMPI_INTEGRITY_SECRET;
     if (!integritySecret) {
-      return {
-        statusCode: 500,
-        body: JSON.stringify({ error: "Falta WOMPI_INTEGRITY_SECRET en el servidor" }),
-      };
+      return Response.json(
+        { error: "Falta WOMPI_INTEGRITY_SECRET en el servidor" },
+        { status: 500 }
+      );
     }
 
     // EL ORDEN IMPORTA:
@@ -38,12 +38,11 @@ exports.handler = async (event) => {
 
     const signature = crypto.createHash("sha256").update(chain).digest("hex");
 
-    return {
-      statusCode: 200,
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ signature, reference, amountInCents, currency }),
-    };
+    return Response.json({ signature, reference, amountInCents, currency });
   } catch (err) {
-    return { statusCode: 500, body: JSON.stringify({ error: err.message }) };
+    return Response.json({ error: err.message }, { status: 500 });
   }
 };
+
+// Esto hace que la función responda en /api/wompi-signature
+export const config = { path: "/api/wompi-signature" };

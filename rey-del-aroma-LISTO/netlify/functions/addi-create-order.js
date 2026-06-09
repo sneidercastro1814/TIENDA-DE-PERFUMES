@@ -1,19 +1,19 @@
-// Crea una orden en Addi del lado servidor.
-// Paso 1: pide un token (OAuth2 client_credentials) con client_id + client_secret.
-// Paso 2: crea la orden y devuelve la URL de checkout a la que rediriges al cliente.
+// OPCIONAL: esta función NO la usa tu frontend actual.
+// Tu tienda muestra Addi con el widget oficial (<addi-widget>), que solo
+// necesita VITE_ADDI_SLUG. Deja esta función aquí por si más adelante quieres
+// la integración por API (crear orden del lado servidor).
 //
-// IMPORTANTE: ADDI_AUTH_URL, ADDI_API_URL y ADDI_AUDIENCE vienen en el correo
-// de onboarding que Addi te envía como comercio aliado (integraciones@addi.com).
-// La ESTRUCTURA del payload de la orden también la define ese documento.
-exports.handler = async (event) => {
-  if (event.httpMethod !== "POST") {
-    return { statusCode: 405, body: "Method Not Allowed" };
+// ADDI_AUTH_URL, ADDI_API_URL y ADDI_AUDIENCE vienen en el correo de
+// onboarding que Addi envía a los comercios aliados (integraciones@addi.com).
+export default async (req) => {
+  if (req.method !== "POST") {
+    return new Response("Method Not Allowed", { status: 405 });
   }
 
   try {
-    const order = JSON.parse(event.body || "{}");
+    const order = await req.json();
 
-    // 1) Token de acceso
+    // 1) Token de acceso (OAuth2 client_credentials)
     const tokenRes = await fetch(process.env.ADDI_AUTH_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -27,7 +27,7 @@ exports.handler = async (event) => {
 
     if (!tokenRes.ok) {
       const detail = await tokenRes.text();
-      return { statusCode: 502, body: JSON.stringify({ error: "Error obteniendo token Addi", detail }) };
+      return Response.json({ error: "Error obteniendo token Addi", detail }, { status: 502 });
     }
 
     const { access_token } = await tokenRes.json();
@@ -39,23 +39,19 @@ exports.handler = async (event) => {
         "Content-Type": "application/json",
         Authorization: `Bearer ${access_token}`,
       },
-      // Ajusta los campos exactos según tu documentación de Addi.
       body: JSON.stringify(order),
     });
 
     const result = await orderRes.json();
 
     if (!orderRes.ok) {
-      return { statusCode: 502, body: JSON.stringify({ error: "Error creando orden Addi", detail: result }) };
+      return Response.json({ error: "Error creando orden Addi", detail: result }, { status: 502 });
     }
 
-    // Addi devuelve una URL de redirección al checkout (campo según docs).
-    return {
-      statusCode: 200,
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(result),
-    };
+    return Response.json(result);
   } catch (err) {
-    return { statusCode: 500, body: JSON.stringify({ error: err.message }) };
+    return Response.json({ error: err.message }, { status: 500 });
   }
 };
+
+export const config = { path: "/api/addi-create-order" };

@@ -1,15 +1,14 @@
-const crypto = require("crypto");
+import crypto from "node:crypto";
 
 // Valida que un evento (webhook) realmente viene de Wompi y no fue alterado.
-// Wompi envía un objeto con: data, signature.properties, signature.checksum, timestamp.
 // Checksum = SHA256( valores_de_properties + timestamp + secreto_de_eventos )
-exports.handler = async (event) => {
-  if (event.httpMethod !== "POST") {
-    return { statusCode: 405, body: "Method Not Allowed" };
+export default async (req) => {
+  if (req.method !== "POST") {
+    return new Response("Method Not Allowed", { status: 405 });
   }
 
   try {
-    const body = JSON.parse(event.body || "{}");
+    const body = await req.json();
     const eventsSecret = process.env.WOMPI_EVENTS_SECRET;
 
     const properties = body?.signature?.properties || [];
@@ -19,27 +18,29 @@ exports.handler = async (event) => {
 
     // Toma el valor de cada propiedad indicada (ej. "transaction.status")
     // navegando dentro de "data", y los concatena EN ORDEN.
-    const values = properties.map((path) =>
-      path.split(".").reduce((obj, key) => (obj ? obj[key] : undefined), data)
+    const values = properties.map((p) =>
+      p.split(".").reduce((obj, key) => (obj ? obj[key] : undefined), data)
     );
 
     const chain = `${values.join("")}${timestamp}${eventsSecret}`;
-    const calculatedChecksum = crypto.createHash("sha256").update(chain).digest("hex");
+    const calculated = crypto.createHash("sha256").update(chain).digest("hex");
 
-    if (calculatedChecksum !== receivedChecksum) {
+    if (calculated !== receivedChecksum) {
       // Si no coincide, alguien intenta suplantar a Wompi. Rechaza.
-      return { statusCode: 401, body: JSON.stringify({ error: "Firma inválida" }) };
+      return Response.json({ error: "Firma inválida" }, { status: 401 });
     }
 
-    // ✅ Evento legítimo. Aquí actualizas tu pedido según el estado.
+    // ✅ Evento legítimo.
     const transaction = data.transaction || {};
     // transaction.status puede ser: APPROVED, DECLINED, VOIDED, ERROR
     console.log("Evento Wompi válido:", transaction.reference, transaction.status);
 
     // TODO: marcar el pedido como pagado/fallido en tu lógica (DB, correo, etc.)
 
-    return { statusCode: 200, body: JSON.stringify({ received: true }) };
+    return Response.json({ received: true });
   } catch (err) {
-    return { statusCode: 500, body: JSON.stringify({ error: err.message }) };
+    return Response.json({ error: err.message }, { status: 500 });
   }
 };
+
+export const config = { path: "/api/wompi-webhook" };
