@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { PRODUCTS, imageForFile } from "./data/products";
+import { PRODUCTS, imageForFile, FAMILIES, TAG_BY_SLUG } from "./data/products";
 import banner1 from "./assets/banners/banner-1.jpg";
 import banner2 from "./assets/banners/banner-2.jpg";
 import banner3 from "./assets/banners/banner-3.jpg";
@@ -18,9 +18,51 @@ import logoSistecredito from "./assets/payments/sistecredito.png";
 const WHATSAPP = "573173293542";          // ← Tu número de WhatsApp (con 57)
 const ADMIN_PASSWORD = "admin123";         // ← Cambia tu contraseña de admin
 const LS_KEY = "rda-catalog-v3";
+const LS_COUPONS = "rda-coupons-v1";       // ← Cupones guardados (los crea el admin)
 
 const waLink = (text) => `https://wa.me/${WHATSAPP}?text=${encodeURIComponent(text)}`;
 const cop = (n) => "$" + Number(n || 0).toLocaleString("es-CO");
+
+/* ════════════════════════════════════════════════════════════════
+   ENVÍOS — edita estos valores a tu gusto
+   ════════════════════════════════════════════════════════════════ */
+const SHIPPING = {
+  // Monto desde el cual el envío es GRATIS en Bogotá (en pesos)
+  bogotaFreeFrom: 250000,
+  // Zonas de envío y su costo (en pesos). El cliente elige una al pagar.
+  zones: [
+    { id: "bogota",        label: "Bogotá",                         cost: 8000  },
+    { id: "nacional",      label: "Resto de Colombia",              cost: 15000 },
+    { id: "internacional", label: "Fuera del país (internacional)", cost: 15000 },
+  ],
+};
+
+/* Costo de envío según la zona y el subtotal del pedido.
+   En Bogotá es GRATIS a partir de SHIPPING.bogotaFreeFrom. */
+function shippingCost(zoneId, subtotal) {
+  const zone = SHIPPING.zones.find((z) => z.id === zoneId) || SHIPPING.zones[0];
+  if (zone.id === "bogota" && subtotal >= SHIPPING.bogotaFreeFrom) return 0;
+  return zone.cost;
+}
+
+/* Descuento que aplica un cupón sobre un subtotal. */
+function couponDiscount(c, subtotal) {
+  if (!c) return 0;
+  if (c.type === "percent") return Math.min(subtotal, Math.round((subtotal * (Number(c.value) || 0)) / 100));
+  return Math.min(subtotal, Math.round(Number(c.value) || 0));
+}
+
+/* Emoji + descripción corta por familia olfativa (tipo de aroma). */
+const FAMILY_META = {
+  "Amaderado": { emoji: "🌳", hint: "Maderas, sándalo, cedro" },
+  "Oriental":  { emoji: "🔥", hint: "Ámbar, especias, vainilla" },
+  "Floral":    { emoji: "🌸", hint: "Rosa, jazmín, flores" },
+  "Frutal":    { emoji: "🍑", hint: "Frutas jugosas y dulces" },
+  "Dulce":     { emoji: "🍬", hint: "Gourmand, vainilla, caramelo" },
+  "Cítrico":   { emoji: "🍋", hint: "Cítricos frescos" },
+  "Acuático":  { emoji: "🌊", hint: "Marino, fresco, limpio" },
+  "Aromático": { emoji: "🌿", hint: "Lavanda, hierbas, fougère" },
+};
 
 /* ════════════════════════════════════════════════════════════════
    MÉTODOS DE PAGO
@@ -731,6 +773,82 @@ body::after {
 .sub-success { position: relative; padding: 8px 0; }
 .sub-check { width: 64px; height: 64px; border-radius: 50%; background: linear-gradient(135deg, var(--gold-l), var(--gold)); color: #1a1208; font-size: 32px; font-weight: 700; display: flex; align-items: center; justify-content: center; margin: 0 auto 18px; box-shadow: 0 0 40px rgba(201,168,76,0.5); }
 @media (max-width: 768px) { .subscribe { padding: 48px 16px; } .sub-title { font-size: 30px; } .sub-form { flex-direction: column; } .sub-btn { padding: 15px; } }
+
+/* ── FILTRO POR FAMILIA OLFATIVA (TIPO DE AROMA) ── */
+.fam-filters { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+.fam-label { font-size: 11px; letter-spacing: 2px; text-transform: uppercase; color: var(--text-muted); margin-right: 4px; font-weight: 600; }
+.fam-tab { display: inline-flex; align-items: center; gap: 6px; background: var(--bg2); border: 1px solid var(--border); color: var(--text); font-family: var(--sans); font-size: 12px; font-weight: 600; letter-spacing: 0.4px; padding: 8px 14px; border-radius: 999px; cursor: pointer; transition: all 0.2s; white-space: nowrap; }
+.fam-tab:hover { border-color: var(--gold); color: var(--gold-d); transform: translateY(-1px); }
+.fam-tab.act { background: linear-gradient(135deg, var(--gold-l), var(--gold)); border-color: var(--gold); color: #1a1208; box-shadow: 0 4px 14px rgba(201,168,76,0.3); }
+.fam-emoji { font-size: 14px; line-height: 1; }
+
+/* ── ETIQUETA DE AROMA EN TARJETA Y DETALLE ── */
+.pcard-tag { display: inline-flex; align-items: center; gap: 4px; font-size: 10.5px; letter-spacing: 0.6px; text-transform: uppercase; font-weight: 700; color: var(--gold-d); background: rgba(201,168,76,0.12); border: 1px solid var(--border); padding: 4px 9px; border-radius: 999px; margin-bottom: 12px; }
+.pd-chip.tag { background: rgba(201,168,76,0.14); border-color: var(--gold); color: var(--gold-d); font-weight: 700; }
+
+/* ── RESULTADOS EN VIVO DE LA BÚSQUEDA (LUPA) ── */
+.search-results { max-width: 760px; margin: 10px auto 0; background: rgba(18,18,16,0.98); border: 1px solid var(--border); border-radius: 6px; overflow: hidden; box-shadow: 0 18px 50px rgba(0,0,0,0.5); animation: searchDrop 0.2s ease; }
+.sr-item { width: 100%; display: flex; align-items: center; gap: 14px; background: none; border: none; border-bottom: 1px solid rgba(255,255,255,0.06); padding: 12px 16px; cursor: pointer; text-align: left; transition: background 0.15s; }
+.sr-item:last-of-type { border-bottom: none; }
+.sr-item:hover { background: rgba(255,255,255,0.06); }
+.sr-img { width: 46px; height: 46px; flex-shrink: 0; border-radius: 4px; overflow: hidden; background: rgba(255,255,255,0.06); display: flex; align-items: center; justify-content: center; }
+.sr-img img { width: 100%; height: 100%; object-fit: cover; }
+.sr-noimg { font-size: 20px; opacity: 0.5; }
+.sr-info { display: flex; flex-direction: column; gap: 3px; flex: 1; min-width: 0; }
+.sr-name { color: #fff; font-size: 14px; font-weight: 600; letter-spacing: 0.2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sr-sub { color: rgba(255,255,255,0.5); font-size: 11.5px; letter-spacing: 0.3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sr-price { color: var(--gold-l); font-size: 13px; font-weight: 700; white-space: nowrap; flex-shrink: 0; }
+.sr-all { width: 100%; background: rgba(201,168,76,0.1); border: none; border-top: 1px solid var(--border); color: var(--gold-l); font-family: var(--sans); font-size: 12.5px; font-weight: 600; letter-spacing: 0.5px; padding: 13px; cursor: pointer; transition: background 0.15s; }
+.sr-all:hover { background: rgba(201,168,76,0.18); }
+.sr-empty { color: rgba(255,255,255,0.6); font-size: 13px; padding: 22px 18px; text-align: center; line-height: 1.5; }
+
+/* ── ENVÍO: NOTA EN CHECKOUT + HINT EN CARRITO ── */
+.co-ship-note { font-size: 12px; color: var(--text-muted); margin-top: 8px; line-height: 1.5; }
+.co-ship-note b { color: #1c7c3e; }
+.cart-ship { font-size: 12.5px; color: var(--text-muted); background: var(--bg2); border: 1px dashed var(--border); border-radius: 6px; padding: 10px 12px; margin-bottom: 14px; line-height: 1.5; text-align: center; }
+.cart-ship b { color: var(--gold-d); }
+.cart-ship.free { color: #1c7c3e; border-color: rgba(28,124,62,0.4); background: rgba(28,124,62,0.07); }
+.cart-ship.free b { color: #1c7c3e; }
+
+/* ── CUPÓN EN CHECKOUT ── */
+.co-coupon { margin: 4px 0 14px; }
+.co-coupon-row { display: flex; gap: 8px; }
+.co-coupon-input { flex: 1; min-width: 0; background: var(--bg); border: 1px solid var(--border); border-radius: 5px; padding: 11px 13px; font-family: var(--sans); font-size: 13px; letter-spacing: 0.5px; color: var(--text); text-transform: uppercase; outline: none; transition: border-color 0.2s; }
+.co-coupon-input:focus { border-color: var(--gold); }
+.co-coupon-input::placeholder { text-transform: none; color: var(--text-muted); letter-spacing: 0; }
+.co-coupon-btn { background: var(--text); color: #fff; border: none; border-radius: 5px; padding: 0 18px; font-family: var(--sans); font-size: 12px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; cursor: pointer; transition: opacity 0.2s; white-space: nowrap; }
+.co-coupon-btn:hover { opacity: 0.85; }
+.co-coupon-on { display: flex; align-items: center; justify-content: space-between; gap: 10px; background: rgba(28,124,62,0.07); border: 1px solid rgba(28,124,62,0.35); border-radius: 6px; padding: 10px 14px; }
+.co-coupon-on-info { display: flex; flex-direction: column; gap: 2px; }
+.co-coupon-tag { font-size: 13px; font-weight: 700; letter-spacing: 0.5px; color: #1c7c3e; }
+.co-coupon-desc { font-size: 11.5px; color: var(--text-muted); }
+.co-coupon-rm { background: none; border: none; color: #c0392b; font-size: 12px; font-weight: 600; cursor: pointer; letter-spacing: 0.3px; }
+.co-coupon-rm:hover { text-decoration: underline; }
+
+/* ── DESGLOSE DE PRECIO EN CHECKOUT ── */
+.co-breakdown { border-top: 1px solid rgba(0,0,0,0.08); padding-top: 14px; display: flex; flex-direction: column; gap: 9px; }
+.co-brow { display: flex; justify-content: space-between; align-items: baseline; font-size: 13.5px; color: var(--text); }
+.co-brow span:first-child { color: var(--text-muted); }
+.co-brow.disc span { color: #1c7c3e; font-weight: 600; }
+.co-free { color: #1c7c3e; font-weight: 700; letter-spacing: 0.5px; }
+.co-ship-hint { font-size: 11.5px; color: var(--gold-d); background: rgba(201,168,76,0.1); border-radius: 5px; padding: 8px 11px; margin-top: 2px; line-height: 1.4; }
+
+/* ── PANEL ADMIN: CREAR CUPONES ── */
+.coupon-create { display: grid; grid-template-columns: 1.4fr 1fr 1fr auto; gap: 14px; align-items: end; background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; padding: 22px; margin-bottom: 28px; }
+.coupon-add-btn { background: linear-gradient(135deg, var(--gold-l), var(--gold)); color: #1a1208; border: none; border-radius: 7px; padding: 13px 22px; font-family: var(--sans); font-size: 13px; font-weight: 700; letter-spacing: 0.5px; cursor: pointer; transition: all 0.2s; white-space: nowrap; height: fit-content; }
+.coupon-add-btn:hover { box-shadow: 0 8px 22px rgba(201,168,76,0.35); transform: translateY(-1px); }
+.coupon-state { display: inline-block; font-size: 11px; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase; padding: 4px 11px; border-radius: 999px; background: rgba(150,150,150,0.16); color: #888; }
+.coupon-state.on { background: rgba(28,124,62,0.14); color: #1c7c3e; }
+
+@media (max-width: 768px) {
+  .fam-filters { gap: 6px; }
+  .fam-tab { font-size: 11px; padding: 7px 11px; }
+  .search-results { margin-top: 8px; }
+  .sr-item { padding: 11px 13px; gap: 11px; }
+  .sr-img { width: 40px; height: 40px; }
+  .coupon-create { grid-template-columns: 1fr; gap: 12px; padding: 18px; }
+  .coupon-add-btn { width: 100%; }
+}
 `;
 
 /* ──────────────────────────────────────────────────────────────
@@ -783,7 +901,7 @@ const PayBadges = ({ className = "" }) => (
 const EMPTY_FORM = {
   name: "", brand: "", subtitle: "", size: "", price: "",
   category: "Para Él", collection: "Árabes", promo: false,
-  description: "", image: "",
+  tag: "", description: "", image: "",
 };
 
 const FILTER_TABS = ["Todos", "Para Él", "Para Ella", "Unisex", "Destacados", "Diseñador", "Árabes", "2 × $300.000"];
@@ -830,11 +948,28 @@ function loadInitialProducts() {
       const parsed = JSON.parse(saved);
       if (Array.isArray(parsed) && parsed.length) {
         // re-resolver imágenes originales por nombre de archivo (robusto entre builds)
-        return parsed.map((p) => ({ ...p, image: (p.img && imageForFile(p.img)) || p.image || "" }));
+        // y re-aplicar la familia olfativa (tag) por slug si el catálogo guardado aún no la tiene
+        return parsed.map((p) => ({
+          ...p,
+          image: (p.img && imageForFile(p.img)) || p.image || "",
+          tag: p.tag || TAG_BY_SLUG[p.slug] || "",
+        }));
       }
     }
   } catch { /* ignore */ }
   return PRODUCTS;
+}
+
+/* Cupones guardados (los crea el admin). Estado inicial perezoso desde localStorage. */
+function loadCoupons() {
+  try {
+    const saved = localStorage.getItem(LS_COUPONS);
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      if (Array.isArray(parsed)) return parsed;
+    }
+  } catch { /* ignore */ }
+  return [];
 }
 
 /* ¿El usuario está volviendo de Wompi? (?wompi=1&id=<txId> o ?env=...) */
@@ -872,6 +1007,7 @@ export default function ReyDelAroma() {
   const [pauseSlide, setPauseSlide] = useState(false);
   const [search, setSearch] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
+  const [tagFilter, setTagFilter] = useState("Todos"); // filtro por familia olfativa (tipo de aroma)
 
   /* ── SUSCRIPCIÓN (correo) — al final de la página, sin ventana emergente ── */
   const [newsletterEmail, setNewsletterEmail] = useState("");
@@ -883,6 +1019,13 @@ export default function ReyDelAroma() {
   const [coForm, setCoForm] = useState({ name: "", phone: "", email: "", city: "", address: "" });
   const [placing, setPlacing] = useState(false);
   const [payResult, setPayResult] = useState(() => (readWompiReturn().fromWompi ? { loading: true } : null)); // resultado tras volver de Wompi
+
+  /* ── ENVÍO + CUPONES ── */
+  const [shipZone, setShipZone] = useState("bogota");
+  const [coupons, setCoupons] = useState(loadCoupons);
+  const [coCouponInput, setCoCouponInput] = useState("");
+  const [appliedCoupon, setAppliedCoupon] = useState(null);
+  const [couponForm, setCouponForm] = useState({ code: "", type: "percent", value: "" });
 
   const banners = [
     { src: banner1, alt: "Más de 50 referencias disponibles", filter: "Todos" },
@@ -898,6 +1041,11 @@ export default function ReyDelAroma() {
   useEffect(() => {
     try { localStorage.setItem(LS_KEY, JSON.stringify(products)); } catch { /* ignore */ }
   }, [products]);
+
+  /* guardar cupones en localStorage */
+  useEffect(() => {
+    try { localStorage.setItem(LS_COUPONS, JSON.stringify(coupons)); } catch { /* ignore */ }
+  }, [coupons]);
 
   useEffect(() => { const t = requestAnimationFrame(() => setAppReady(true)); return () => cancelAnimationFrame(t); }, []);
 
@@ -955,7 +1103,7 @@ export default function ReyDelAroma() {
   };
 
   const goCatalog = () => document.getElementById("cat")?.scrollIntoView({ behavior: "smooth" });
-  const quickFilter = (f) => { setView("store"); setCatFilter(f); setSearch(""); setSearchOpen(false); setMenuOpen(false); setTimeout(goCatalog, 80); };
+  const quickFilter = (f) => { setView("store"); setCatFilter(f); setTagFilter("Todos"); setSearch(""); setSearchOpen(false); setMenuOpen(false); setTimeout(goCatalog, 80); };
   const submitSearch = () => { setView("store"); setMenuOpen(false); setTimeout(goCatalog, 80); };
 
   const openProduct = (p) => {
@@ -986,10 +1134,22 @@ export default function ReyDelAroma() {
   const q = search.trim().toLowerCase();
   const filtered = q
     ? products.filter((p) =>
-        [p.name, p.fullName, p.brand, p.collection, p.category, p.subtitle]
+        [p.name, p.fullName, p.brand, p.collection, p.category, p.subtitle, p.tag]
           .filter(Boolean).join(" ").toLowerCase().includes(q)
       )
-    : products.filter((p) => matchFilter(p, catFilter));
+    : products.filter((p) => matchFilter(p, catFilter) && (tagFilter === "Todos" || p.tag === tagFilter));
+
+  // Resultados en vivo bajo la lupa (primeros 6 mientras el cliente escribe)
+  const searchResults = q ? filtered.slice(0, 6) : [];
+
+  /* Totales del checkout: subtotal, descuento del cupón, envío y total. */
+  const computeTotals = (items = checkoutItems) => {
+    const subtotal = items.reduce((s, i) => s + i.price * i.qty, 0);
+    const discount = couponDiscount(appliedCoupon, subtotal);
+    const base = Math.max(0, subtotal - discount);
+    const shipping = shippingCost(shipZone, subtotal);
+    return { subtotal, discount, base, shipping, total: base + shipping };
+  };
 
   /* ── PAGO / CHECKOUT ── */
   const goCheckout = (items) => {
@@ -1009,11 +1169,13 @@ export default function ReyDelAroma() {
     if (!coForm.name.trim() || !coForm.phone.trim() || !coForm.city.trim() || !coForm.address.trim())
       return showToast("Completa tus datos de envío");
 
-    const total = checkoutItems.reduce((s, i) => s + i.price * i.qty, 0);
+    const { subtotal, discount, shipping, total } = computeTotals();
     const reference = newReference();
     try {
       localStorage.setItem("rda-last-order", JSON.stringify({
-        reference, method: payMethod, total, items: checkoutItems, ...coForm, date: new Date().toISOString(),
+        reference, method: payMethod, subtotal, discount, shipping, total,
+        coupon: appliedCoupon ? appliedCoupon.code : "", zone: shipZone,
+        items: checkoutItems, ...coForm, date: new Date().toISOString(),
       }));
     } catch { /* ignore */ }
 
@@ -1046,7 +1208,7 @@ export default function ReyDelAroma() {
   const startAdd = () => { setForm(EMPTY_FORM); setEditingId(null); setAdminView("form"); };
   const startEdit = (p) => {
     setEditingId(p.id);
-    setForm({ name: p.name || "", brand: p.brand || "", subtitle: p.subtitle || "", size: p.size || "", price: String(p.price || ""), category: p.category || "Para Él", collection: p.collection || "Árabes", promo: !!p.promo, description: p.description || "", image: p.image || "", img: p.img || "" });
+    setForm({ name: p.name || "", brand: p.brand || "", subtitle: p.subtitle || "", size: p.size || "", price: String(p.price || ""), category: p.category || "Para Él", collection: p.collection || "Árabes", promo: !!p.promo, tag: p.tag || "", description: p.description || "", image: p.image || "", img: p.img || "" });
     setAdminView("form");
   };
   const deleteProduct = (id) => {
@@ -1071,6 +1233,7 @@ export default function ReyDelAroma() {
       category: form.category,
       collection: form.collection,
       promo: form.promo ? PROMO_LABEL : "",
+      tag: form.tag || "",
       description: form.description.trim(),
       image: form.image || "",
       img: form.img || "",
@@ -1095,9 +1258,39 @@ export default function ReyDelAroma() {
     reader.readAsDataURL(file);
   };
 
+  /* ── CUPONES ── */
+  const couponLabel = (c) => (c.type === "percent" ? `${c.value}% de descuento` : `${cop(c.value)} de descuento`);
+  const applyCoupon = () => {
+    const code = coCouponInput.trim().toUpperCase();
+    if (!code) return;
+    const found = coupons.find((c) => c.active && c.code.toUpperCase() === code);
+    if (!found) { setAppliedCoupon(null); return showToast("Cupón no válido o inactivo"); }
+    setAppliedCoupon(found);
+    showToast(`Cupón ${found.code} aplicado 🎉`);
+  };
+  const removeCoupon = () => { setAppliedCoupon(null); setCoCouponInput(""); };
+  const addCoupon = () => {
+    const code = couponForm.code.trim().toUpperCase();
+    const value = parseInt(String(couponForm.value).replace(/[^\d]/g, "")) || 0;
+    if (!code) return showToast("Escribe un código de cupón");
+    if (value <= 0) return showToast("El valor del cupón debe ser mayor a 0");
+    if (couponForm.type === "percent" && value > 100) return showToast("El porcentaje no puede ser mayor a 100");
+    if (coupons.some((c) => c.code.toUpperCase() === code)) return showToast("Ya existe un cupón con ese código");
+    setCoupons((prev) => [{ id: Date.now(), code, type: couponForm.type, value, active: true }, ...prev]);
+    setCouponForm({ code: "", type: "percent", value: "" });
+    showToast("Cupón creado");
+  };
+  const toggleCoupon = (id) => setCoupons((prev) => prev.map((c) => (c.id === id ? { ...c, active: !c.active } : c)));
+  const deleteCoupon = (id) => {
+    if (!confirm("¿Eliminar este cupón?")) return;
+    setCoupons((prev) => prev.filter((c) => c.id !== id));
+    showToast("Cupón eliminado");
+  };
+
   /* ── DATOS UI ── */
   const announceItems = [
-    { icon: "🚚", text: "Envíos a toda Colombia" },
+    { icon: "🚚", text: "Envío GRATIS en Bogotá desde $250.000" },
+    { icon: "🌎", text: "Enviamos a toda Colombia y al exterior" },
     { icon: "🔒", text: "Pago en línea 100% seguro" },
     { icon: "💎", text: "Fragancias 100% originales" },
     { icon: "🔥", text: "Promo 2 × $300.000" },
@@ -1192,16 +1385,30 @@ export default function ReyDelAroma() {
         ))}
       </div>
 
+      {/* Filtro por familia olfativa (tipo de aroma) — combinable con la categoría */}
+      {!q && (
+        <div className="filters fam-filters">
+          <span className="fam-label">Tipo de aroma</span>
+          <button className={`fam-tab${tagFilter === "Todos" ? " act" : ""}`} onClick={() => setTagFilter("Todos")}>Todos</button>
+          {FAMILIES.map((fam) => (
+            <button key={fam} className={`fam-tab${tagFilter === fam ? " act" : ""}`} onClick={() => setTagFilter(fam)} title={FAMILY_META[fam]?.hint || ""}>
+              <span className="fam-emoji">{FAMILY_META[fam]?.emoji || "✨"}</span>{fam}
+            </button>
+          ))}
+        </div>
+      )}
+
       {/* Productos */}
       <div className="products-wrap" id="cat">
         <div className="sec-hdr">
           <h2 className="sec-title">
             {q ? <>Resultados para <span>«{search.trim()}»</span></>
+              : tagFilter !== "Todos" && catFilter === "Todos" ? <>Aroma <span>{tagFilter}</span></>
               : catFilter === "Todos" ? <>Nuestra <span>Colección</span></>
               : catFilter === "Destacados" ? <>Productos <span>Destacados</span></>
               : <><span>{catFilter}</span></>}
           </h2>
-          <span className="sec-cnt">{filtered.length} fragancia{filtered.length !== 1 ? "s" : ""}</span>
+          <span className="sec-cnt">{filtered.length} fragancia{filtered.length !== 1 ? "s" : ""}{!q && tagFilter !== "Todos" && catFilter !== "Todos" ? ` · ${tagFilter}` : ""}</span>
         </div>
         <div className="pgrid">
           {filtered.map((p) => (
@@ -1214,6 +1421,7 @@ export default function ReyDelAroma() {
                 <div className="pcard-cat">{p.brand}</div>
                 <div className="pcard-name">{p.name}</div>
                 <div className="pcard-sub">{p.subtitle || p.size || p.collection}</div>
+                {p.tag && <span className="pcard-tag">{FAMILY_META[p.tag]?.emoji || "✨"} {p.tag}</span>}
                 <div className="pcard-price">{cop(p.price)} <span className="pcard-curr">COP</span></div>
               </div>
               <div className="pcard-foot">
@@ -1321,6 +1529,7 @@ export default function ReyDelAroma() {
               <span className="pd-chip gold">{p.brand}</span>
               <span className="pd-chip">{p.category}</span>
               <span className="pd-chip">{p.collection}</span>
+              {p.tag && <span className="pd-chip tag">{FAMILY_META[p.tag]?.emoji || "✨"} {p.tag}</span>}
               {p.size && <span className="pd-chip">{p.size}</span>}
             </div>
 
@@ -1433,7 +1642,8 @@ export default function ReyDelAroma() {
         </div>
       );
     }
-    const total = checkoutItems.reduce((s, i) => s + i.price * i.qty, 0);
+    const { subtotal, discount, shipping, total } = computeTotals();
+    const freeLeft = SHIPPING.bogotaFreeFrom - subtotal;
     const methods = [
       { id: "wompi", name: "Wompi", logo: logoWompi, desc: "Tarjeta · PSE · Nequi · Bancolombia", badge: "Pago inmediato" },
       { id: "addi", name: "Addi", logo: logoAddi, desc: "Paga a cuotas, sin tarjeta", badge: "A cuotas" },
@@ -1462,6 +1672,17 @@ export default function ReyDelAroma() {
               <div className="fg"><label className="fl">Correo (opcional)</label><input className="fi" type="email" value={coForm.email} onChange={setCo("email")} placeholder="tu@correo.com" /></div>
               <div className="fg"><label className="fl">Ciudad *</label><input className="fi" value={coForm.city} onChange={setCo("city")} placeholder="Ej. Medellín" /></div>
               <div className="fg"><label className="fl">Dirección de envío *</label><input className="fi" value={coForm.address} onChange={setCo("address")} placeholder="Calle 00 # 00-00, barrio" /></div>
+              <div className="fg full">
+                <label className="fl">Zona de envío *</label>
+                <select className="fsel" value={shipZone} onChange={(e) => setShipZone(e.target.value)}>
+                  {SHIPPING.zones.map((z) => (
+                    <option key={z.id} value={z.id}>
+                      {z.label} — {z.id === "bogota" ? `gratis desde ${cop(SHIPPING.bogotaFreeFrom)}` : cop(z.cost)}
+                    </option>
+                  ))}
+                </select>
+                <div className="co-ship-note">🚚 En Bogotá el envío es <b>GRATIS</b> desde {cop(SHIPPING.bogotaFreeFrom)}. Fuera del país: {cop(15000)}.</div>
+              </div>
             </div>
 
             <div className="co-sec-t" style={{ marginTop: 30 }}>¿Cómo quieres pagar?</div>
@@ -1492,6 +1713,39 @@ export default function ReyDelAroma() {
                 </div>
               ))}
             </div>
+            <div className="co-coupon">
+              {appliedCoupon ? (
+                <div className="co-coupon-on">
+                  <div className="co-coupon-on-info">
+                    <span className="co-coupon-tag">🎟️ {appliedCoupon.code}</span>
+                    <span className="co-coupon-desc">{couponLabel(appliedCoupon)}</span>
+                  </div>
+                  <button className="co-coupon-rm" onClick={removeCoupon}>Quitar</button>
+                </div>
+              ) : (
+                <div className="co-coupon-row">
+                  <input
+                    className="co-coupon-input"
+                    placeholder="¿Tienes un cupón?"
+                    value={coCouponInput}
+                    onChange={(e) => setCoCouponInput(e.target.value.toUpperCase())}
+                    onKeyDown={(e) => e.key === "Enter" && applyCoupon()}
+                  />
+                  <button className="co-coupon-btn" onClick={applyCoupon}>Aplicar</button>
+                </div>
+              )}
+            </div>
+            <div className="co-breakdown">
+              <div className="co-brow"><span>Subtotal</span><span>{cop(subtotal)}</span></div>
+              {discount > 0 && <div className="co-brow disc"><span>Descuento</span><span>−{cop(discount)}</span></div>}
+              <div className="co-brow">
+                <span>Envío {SHIPPING.zones.find((z) => z.id === shipZone)?.label ? `(${SHIPPING.zones.find((z) => z.id === shipZone).label})` : ""}</span>
+                <span>{shipping === 0 ? <b className="co-free">GRATIS</b> : cop(shipping)}</span>
+              </div>
+              {shipZone === "bogota" && shipping > 0 && freeLeft > 0 && (
+                <div className="co-ship-hint">Agrega {cop(freeLeft)} más y tu envío en Bogotá es gratis 🎉</div>
+              )}
+            </div>
             <div className="co-total-row"><span>Total a pagar</span><span className="co-total">{cop(total)}</span></div>
             {payMethod === "addi" && PAYMENTS.addi.enabled ? (
               <div className="co-addi">
@@ -1504,7 +1758,7 @@ export default function ReyDelAroma() {
                 <button className="co-pay-btn" onClick={placeOrder} disabled={placing}>
                   {placing ? "Redirigiendo a la pasarela…" : `Pagar con ${activeName}`}
                 </button>
-                <div className="co-secure">🔒 Pago seguro · Envíos a toda Colombia</div>
+                <div className="co-secure">🔒 Pago seguro · Envío gratis en Bogotá desde {cop(SHIPPING.bogotaFreeFrom)}</div>
               </>
             )}
             <a className="co-help" href={waLink("Hola Rey del Aroma 👑, tengo una duda con mi compra.")} target="_blank" rel="noreferrer">¿Tienes dudas? Escríbenos</a>
@@ -1561,6 +1815,15 @@ export default function ReyDelAroma() {
               </select>
             </div>
             <div className="fg">
+              <label className="fl">Tipo de aroma</label>
+              <select className="fsel" value={form.tag} onChange={setF("tag")}>
+                <option value="">— Sin etiqueta —</option>
+                {FAMILIES.map((fam) => (
+                  <option key={fam} value={fam}>{FAMILY_META[fam]?.emoji || "✨"} {fam}</option>
+                ))}
+              </select>
+            </div>
+            <div className="fg">
               <label className="fl">Promoción</label>
               <label className="fchk"><input type="checkbox" checked={form.promo} onChange={(e) => setForm((f) => ({ ...f, promo: e.target.checked }))} /> Incluir en 2 × $300.000</label>
             </div>
@@ -1590,11 +1853,71 @@ export default function ReyDelAroma() {
       );
     }
 
+    if (adminView === "coupons") {
+      return (
+        <div className="admin-wrap">
+          <div className="admin-hdr">
+            <div className="admin-title">Gestión de <span>Cupones</span></div>
+            <div style={{ display: "flex", gap: 12 }}>
+              <button className="btn-o" onClick={() => setAdminView("list")}>← Volver</button>
+            </div>
+          </div>
+          <div className="admin-info">Crea cupones de descuento para tus clientes. Los aplican al pagar escribiendo el código. Se guardan en este navegador.</div>
+
+          <div className="coupon-create">
+            <div className="fg">
+              <label className="fl">Código del cupón *</label>
+              <input className="fi" placeholder="EJ. BIENVENIDO10" value={couponForm.code} onChange={(e) => setCouponForm((f) => ({ ...f, code: e.target.value.toUpperCase() }))} />
+            </div>
+            <div className="fg">
+              <label className="fl">Tipo de descuento</label>
+              <select className="fsel" value={couponForm.type} onChange={(e) => setCouponForm((f) => ({ ...f, type: e.target.value }))}>
+                <option value="percent">Porcentaje (%)</option>
+                <option value="fixed">Monto fijo (COP)</option>
+              </select>
+            </div>
+            <div className="fg">
+              <label className="fl">{couponForm.type === "percent" ? "Porcentaje (1–100)" : "Monto en pesos"}</label>
+              <input className="fi" type="number" placeholder={couponForm.type === "percent" ? "10" : "20000"} value={couponForm.value} onChange={(e) => setCouponForm((f) => ({ ...f, value: e.target.value }))} />
+            </div>
+            <button className="coupon-add-btn" onClick={addCoupon}>+ Crear cupón</button>
+          </div>
+
+          {coupons.length > 0 ? (
+            <table className="atbl">
+              <thead>
+                <tr><th>Código</th><th>Descuento</th><th>Estado</th><th>Acciones</th></tr>
+              </thead>
+              <tbody>
+                {coupons.map((c) => (
+                  <tr key={c.id}>
+                    <td><div className="atn">🎟️ {c.code}</div></td>
+                    <td className="atp">{couponLabel(c)}</td>
+                    <td><span className={`coupon-state${c.active ? " on" : ""}`}>{c.active ? "Activo" : "Inactivo"}</span></td>
+                    <td style={{ whiteSpace: "nowrap" }}>
+                      <button className="abtn abtn-e" onClick={() => toggleCoupon(c.id)}>{c.active ? "Desactivar" : "Activar"}</button>
+                      <button className="abtn abtn-d" onClick={() => deleteCoupon(c.id)}>Eliminar</button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : (
+            <div style={{ textAlign: "center", padding: "80px", color: "#999" }}>
+              <div style={{ fontSize: 48, marginBottom: 12, opacity: 0.3 }}>🎟️</div>
+              <p>Aún no has creado cupones. Crea el primero arriba.</p>
+            </div>
+          )}
+        </div>
+      );
+    }
+
     return (
       <div className="admin-wrap">
         <div className="admin-hdr">
           <div className="admin-title">Panel de <span>Administración</span></div>
           <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+            <button className="btn-o" onClick={() => setAdminView("coupons")}>🎟️ Cupones</button>
             <button className="btn-o" onClick={resetCatalog}>Restaurar catálogo</button>
             <button className="btn-o" onClick={() => { setAdminAuth(false); setView("store"); }}>Salir</button>
             <button className="btn-g" onClick={startAdd}>+ Agregar</button>
@@ -1711,6 +2034,27 @@ export default function ReyDelAroma() {
             {search && <button className="search-clear" onClick={() => setSearch("")} aria-label="Limpiar">✕</button>}
             <button className="search-close" onClick={() => setSearchOpen(false)} aria-label="Cerrar búsqueda">Cerrar</button>
           </div>
+          {q && (
+            <div className="search-results">
+              {searchResults.length > 0 ? (
+                <>
+                  {searchResults.map((p) => (
+                    <button key={p.id} className="sr-item" onClick={() => { openProduct(p); setSearchOpen(false); }}>
+                      <span className="sr-img">{p.image ? <img src={p.image} alt={p.name} /> : <span className="sr-noimg">🧴</span>}</span>
+                      <span className="sr-info">
+                        <span className="sr-name">{p.name}</span>
+                        <span className="sr-sub">{p.brand}{p.tag ? ` · ${FAMILY_META[p.tag]?.emoji || ""} ${p.tag}` : ""}</span>
+                      </span>
+                      <span className="sr-price">{cop(p.price)}</span>
+                    </button>
+                  ))}
+                  <button className="sr-all" onClick={submitSearch}>Ver todos los resultados de “{search.trim()}” →</button>
+                </>
+              ) : (
+                <div className="sr-empty">No encontramos perfumes para “{search.trim()}”. Prueba con otra marca o tipo de aroma.</div>
+              )}
+            </div>
+          )}
         </div>
       )}
 
@@ -1753,6 +2097,9 @@ export default function ReyDelAroma() {
             {cart.length > 0 && (
               <div className="cart-foot">
                 <div className="cart-tr"><span className="cart-tl">Total</span><span className="cart-ta">{cop(cartTotal)}</span></div>
+                {cartTotal < SHIPPING.bogotaFreeFrom
+                  ? <div className="cart-ship">🚚 Te faltan <b>{cop(SHIPPING.bogotaFreeFrom - cartTotal)}</b> para envío gratis en Bogotá</div>
+                  : <div className="cart-ship free">🚚 ¡Tienes envío <b>GRATIS</b> en Bogotá!</div>}
                 <button className="co-checkout-btn" onClick={() => goCheckout(cart)}>Finalizar compra →</button>
                 <button className="cart-keep" onClick={() => setCartOpen(false)}>← Seguir comprando</button>
                 <div className="cart-note">Pago 100% seguro</div>

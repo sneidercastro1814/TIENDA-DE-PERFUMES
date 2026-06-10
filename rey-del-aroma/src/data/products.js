@@ -13,6 +13,7 @@ for (const path in imgs) {
 const RAW = [
   {
     "slug": "dior-sauvage-649999",
+    "tag": "Amaderado",
     "img": "dior-sauvage-649999.jpg",
     "name": "SAUVAGE",
     "fullName": "Sauvage Dior EDP",
@@ -27,6 +28,7 @@ const RAW = [
   },
   {
     "slug": "valentino-uomo-born-in-roma-649999",
+    "tag": "Amaderado",
     "img": "valentino-uomo-born-in-roma-649999.jpg",
     "name": "UOMO BORN IN ROMA",
     "fullName": "Valentino Uomo Born In Roma EDT",
@@ -41,6 +43,7 @@ const RAW = [
   },
   {
     "slug": "dior-sauvage-579999",
+    "tag": "Aromático",
     "img": "dior-sauvage-579999.jpg",
     "name": "SAUVAGE",
     "fullName": "Sauvage Dior EDT",
@@ -55,6 +58,7 @@ const RAW = [
   },
   {
     "slug": "jean-paul-gaultier-le-male-elixir-479999",
+    "tag": "Oriental",
     "img": "jean-paul-gaultier-le-male-elixir-479999.jpg",
     "name": "LE MALE ELIXIR",
     "fullName": "Jean Paul Gaultier Le Male Elixir",
@@ -69,6 +73,7 @@ const RAW = [
   },
   {
     "slug": "jean-paul-gaultier-le-male-479999",
+    "tag": "Aromático",
     "img": "jean-paul-gaultier-le-male-479999.jpg",
     "name": "LE MALE",
     "fullName": "Jean Paul Gaultier Le Male",
@@ -83,6 +88,7 @@ const RAW = [
   },
   {
     "slug": "jean-paul-gaultier-paradise-garden-479999",
+    "tag": "Amaderado",
     "img": "jean-paul-gaultier-paradise-garden-479999.jpg",
     "name": "PARADISE GARDEN",
     "fullName": "Jean Paul Gaultier Paradise Garden",
@@ -97,6 +103,7 @@ const RAW = [
   },
   {
     "slug": "ariana-grande-set-thank-u-next-399900",
+    "tag": "Floral",
     "img": "ariana-grande-set-thank-u-next-399900.jpg",
     "name": "SET THANK U NEXT",
     "fullName": "Set Ariana Grande Thank U Next EDP 100ml",
@@ -111,6 +118,7 @@ const RAW = [
   },
   {
     "slug": "lacoste-blanc-319999",
+    "tag": "Aromático",
     "img": "lacoste-blanc-319999.jpg",
     "name": "BLANC",
     "fullName": "Lacoste Blanc EDT 100 ml",
@@ -125,6 +133,7 @@ const RAW = [
   },
   {
     "slug": "ariana-grande-cloud-299999",
+    "tag": "Dulce",
     "img": "ariana-grande-cloud-299999.jpg",
     "name": "CLOUD",
     "fullName": "Ariana Grande Cloud",
@@ -139,6 +148,7 @@ const RAW = [
   },
   {
     "slug": "ariana-grande-thank-u-next-299999",
+    "tag": "Floral",
     "img": "ariana-grande-thank-u-next-299999.jpg",
     "name": "THANK U NEXT",
     "fullName": "Ariana Grande Thank U Next",
@@ -153,6 +163,7 @@ const RAW = [
   },
   {
     "slug": "azzaro-chrome-azure-229900",
+    "tag": "Acuático",
     "img": "azzaro-chrome-azure-229900.jpg",
     "name": "CHROME AZURE",
     "fullName": "Azzaro Chrome Azure EDT 100 ml",
@@ -167,6 +178,7 @@ const RAW = [
   },
   {
     "slug": "calvin-klein-ck-in2u-229900",
+    "tag": "Cítrico",
     "img": "calvin-klein-ck-in2u-229900.jpg",
     "name": "CK IN2U",
     "fullName": "Calvin Klein CK IN2U EDT 150 ml",
@@ -181,6 +193,7 @@ const RAW = [
   },
   {
     "slug": "katy-perry-meow-190000",
+    "tag": "Floral",
     "img": "katy-perry-meow-190000.jpg",
     "name": "MEOW",
     "fullName": "Katy Perry Meow EDP 100 ml",
@@ -195,6 +208,7 @@ const RAW = [
   },
   {
     "slug": "paris-hilton-gold-rush-100-190000",
+    "tag": "Floral",
     "img": "paris-hilton-gold-rush-100-190000.jpg",
     "name": "GOLD RUSH 100",
     "fullName": "Paris Hilton Gold Rush EDP 100",
@@ -209,6 +223,7 @@ const RAW = [
   },
   {
     "slug": "nautica-blue-110000",
+    "tag": "Acuático",
     "img": "nautica-blue-110000.jpg",
     "name": "BLUE",
     "fullName": "Nautica Blue EDT 100ml",
@@ -223,6 +238,7 @@ const RAW = [
   },
   {
     "slug": "nautica-classic-110000",
+    "tag": "Acuático",
     "img": "nautica-classic-110000.jpg",
     "name": "CLASSIC",
     "fullName": "Nautica Classic EDT 100ml",
@@ -237,6 +253,7 @@ const RAW = [
   },
   {
     "slug": "nautica-voyage-110000",
+    "tag": "Acuático",
     "img": "nautica-voyage-110000.jpg",
     "name": "VOYAGE",
     "fullName": "Nautica Voyage EDT 100ml",
@@ -251,6 +268,7 @@ const RAW = [
   },
   {
     "slug": "lattafa-afeef-249900",
+    "tag": "Floral",
     "img": "lattafa-afeef-249900.jpg",
     "name": "AFEEF",
     "fullName": "Lattafa Afeef",
@@ -265,6 +283,7 @@ const RAW = [
   },
   {
     "slug": "lattafa-asad-bourbon-249900",
+    "tag": "Oriental",
     "img": "lattafa-asad-bourbon-249900.jpg",
     "name": "ASAD BOURBON",
     "fullName": "Lattafa Asad Bourbon",
@@ -279,6 +298,7 @@ const RAW = [
   },
   {
     "slug": "armaf-odyssey-aoud-edition-190000",
+    "tag": "Amaderado",
     "img": "armaf-odyssey-aoud-edition-190000.jpg",
     "name": "ODYSSEY AOUD EDITION",
     "fullName": "Armaf Odyssey Aoud Edition",
@@ -293,6 +313,7 @@ const RAW = [
   },
   {
     "slug": "armaf-odyssey-homme-black-190000",
+    "tag": "Amaderado",
     "img": "armaf-odyssey-homme-black-190000.jpg",
     "name": "ODYSSEY HOMME BLACK",
     "fullName": "Armaf Odyssey Homme Black",
@@ -307,6 +328,7 @@ const RAW = [
   },
   {
     "slug": "armaf-odyssey-tyrant-190000",
+    "tag": "Amaderado",
     "img": "armaf-odyssey-tyrant-190000.jpg",
     "name": "ODYSSEY TYRANT",
     "fullName": "Armaf Odyssey Tyrant",
@@ -321,6 +343,7 @@ const RAW = [
   },
   {
     "slug": "armaf-odyssey-wild-one-gold-edition-190000",
+    "tag": "Amaderado",
     "img": "armaf-odyssey-wild-one-gold-edition-190000.jpg",
     "name": "ODYSSEY WILD ONE GOLD EDITION",
     "fullName": "Armaf Odyssey Wild One Gold Edition",
@@ -335,6 +358,7 @@ const RAW = [
   },
   {
     "slug": "armaf-club-de-nuit-intense-man-190000",
+    "tag": "Amaderado",
     "img": "armaf-club-de-nuit-intense-man-190000.jpg",
     "name": "CLUB DE NUIT INTENSE MAN",
     "fullName": "Club de Nuit Intense Man Armaf",
@@ -349,6 +373,7 @@ const RAW = [
   },
   {
     "slug": "armaf-odyssey-femme-190000",
+    "tag": "Floral",
     "img": "armaf-odyssey-femme-190000.jpg",
     "name": "ODYSSEY FEMME",
     "fullName": "Odyssey Femme Armaf 80ml",
@@ -363,6 +388,7 @@ const RAW = [
   },
   {
     "slug": "armaf-odyssey-mandarin-sky-190000",
+    "tag": "Cítrico",
     "img": "armaf-odyssey-mandarin-sky-190000.jpg",
     "name": "ODYSSEY MANDARIN SKY",
     "fullName": "Armaf Odyssey Mandarin Sky",
@@ -377,6 +403,7 @@ const RAW = [
   },
   {
     "slug": "emper-stallion-53-190000",
+    "tag": "Amaderado",
     "img": "emper-stallion-53-190000.jpg",
     "name": "STALLION 53",
     "fullName": "Emper Stallion 53",
@@ -391,6 +418,7 @@ const RAW = [
   },
   {
     "slug": "lattafa-ajayeb-dubai-190000",
+    "tag": "Dulce",
     "img": "lattafa-ajayeb-dubai-190000.jpg",
     "name": "AJAYEB DUBAI",
     "fullName": "Lattafa Ajayeb Dubai",
@@ -405,6 +433,7 @@ const RAW = [
   },
   {
     "slug": "lattafa-asad-190000",
+    "tag": "Oriental",
     "img": "lattafa-asad-190000.jpg",
     "name": "ASAD",
     "fullName": "Lattafa Asad",
@@ -419,6 +448,7 @@ const RAW = [
   },
   {
     "slug": "lattafa-asad-zanzibar-190000",
+    "tag": "Aromático",
     "img": "lattafa-asad-zanzibar-190000.jpg",
     "name": "ASAD ZANZIBAR",
     "fullName": "Lattafa Asad Zanzibar",
@@ -433,6 +463,7 @@ const RAW = [
   },
   {
     "slug": "lattafa-yara-190000",
+    "tag": "Dulce",
     "img": "lattafa-yara-190000.jpg",
     "name": "YARA",
     "fullName": "Lattafa Yara",
@@ -447,6 +478,7 @@ const RAW = [
   },
   {
     "slug": "lattafa-yara-candy-190000",
+    "tag": "Dulce",
     "img": "lattafa-yara-candy-190000.jpg",
     "name": "YARA CANDY",
     "fullName": "Lattafa Yara Candy",
@@ -461,6 +493,7 @@ const RAW = [
   },
   {
     "slug": "lattafa-yara-moi-190000",
+    "tag": "Dulce",
     "img": "lattafa-yara-moi-190000.jpg",
     "name": "YARA MOI",
     "fullName": "Lattafa Yara Moi",
@@ -475,6 +508,7 @@ const RAW = [
   },
   {
     "slug": "lattafa-yara-tous-190000",
+    "tag": "Dulce",
     "img": "lattafa-yara-tous-190000.jpg",
     "name": "YARA TOUS",
     "fullName": "Lattafa Yara Tous",
@@ -489,6 +523,7 @@ const RAW = [
   },
   {
     "slug": "lattafa-ana-abiyedh-190000",
+    "tag": "Dulce",
     "img": "lattafa-ana-abiyedh-190000.jpg",
     "name": "ANA ABIYEDH",
     "fullName": "Ana Abiyedh Lattafa 60ml",
@@ -503,6 +538,7 @@ const RAW = [
   },
   {
     "slug": "lattafa-ana-abiyedh-leather-190000",
+    "tag": "Amaderado",
     "img": "lattafa-ana-abiyedh-leather-190000.jpg",
     "name": "ANA ABIYEDH LEATHER",
     "fullName": "Ana Abiyedh Leather Lattafa 60ml",
@@ -517,6 +553,7 @@ const RAW = [
   },
   {
     "slug": "lattafa-sublime-190000",
+    "tag": "Frutal",
     "img": "lattafa-sublime-190000.jpg",
     "name": "SUBLIME",
     "fullName": "LATTAFA SUBLIME",
@@ -531,6 +568,7 @@ const RAW = [
   },
   {
     "slug": "lattafa-ajayeb-dubai-portrait-190000",
+    "tag": "Frutal",
     "img": "lattafa-ajayeb-dubai-portrait-190000.jpg",
     "name": "AJAYEB DUBAI PORTRAIT",
     "fullName": "Lattafa Ajayeb Dubai Portrait",
@@ -545,6 +583,7 @@ const RAW = [
   },
   {
     "slug": "lattafa-amethyst-190000",
+    "tag": "Oriental",
     "img": "lattafa-amethyst-190000.jpg",
     "name": "AMETHYST",
     "fullName": "Lattafa Amethyst",
@@ -559,6 +598,7 @@ const RAW = [
   },
   {
     "slug": "lattafa-honor-glory-190000",
+    "tag": "Oriental",
     "img": "lattafa-honor-glory-190000.jpg",
     "name": "HONOR & GLORY",
     "fullName": "Lattafa Honor & Glory",
@@ -573,6 +613,7 @@ const RAW = [
   },
   {
     "slug": "lattafa-khamrah-dukhan-190000",
+    "tag": "Oriental",
     "img": "lattafa-khamrah-dukhan-190000.jpg",
     "name": "KHAMRAH DUKHAN",
     "fullName": "Lattafa Khamrah Dukhan",
@@ -587,6 +628,7 @@ const RAW = [
   },
   {
     "slug": "lattafa-khamrah-qahwa-190000",
+    "tag": "Dulce",
     "img": "lattafa-khamrah-qahwa-190000.jpg",
     "name": "KHAMRAH QAHWA",
     "fullName": "Lattafa Khamrah Qahwa",
@@ -601,6 +643,7 @@ const RAW = [
   },
   {
     "slug": "lattafa-khamrah-190000",
+    "tag": "Dulce",
     "img": "lattafa-khamrah-190000.jpg",
     "name": "KHAMRAH",
     "fullName": "Lattafa Khamrah",
@@ -615,6 +658,7 @@ const RAW = [
   },
   {
     "slug": "lattafa-oud-for-glory-190000",
+    "tag": "Amaderado",
     "img": "lattafa-oud-for-glory-190000.jpg",
     "name": "OUD FOR GLORY",
     "fullName": "Lattafa Oud for Glory",
@@ -629,6 +673,7 @@ const RAW = [
   },
   {
     "slug": "maison-alhambra-delilah-190000",
+    "tag": "Floral",
     "img": "maison-alhambra-delilah-190000.jpg",
     "name": "DELILAH",
     "fullName": "Maison Alhambra Delilah",
@@ -647,3 +692,7 @@ export const imageForFile = (file) => imgByFile[file] || '';
 export const PRODUCTS = RAW.map((p) => ({ ...p, image: imgByFile[p.img] || '' }));
 export const CATEGORIES = ['Todos', 'Para Él', 'Para Ella', 'Unisex'];
 export const COLLECTIONS = ['Diseñador', 'Árabes'];
+// Familias olfativas (tipos de aroma) — usadas en el filtro de la tienda y el panel admin
+export const FAMILIES = ['Amaderado', 'Oriental', 'Floral', 'Frutal', 'Dulce', 'Cítrico', 'Acuático', 'Aromático'];
+// Mapa slug -> familia, para re-aplicar etiquetas a catálogos guardados que aún no las tengan
+export const TAG_BY_SLUG = Object.fromEntries(RAW.map((p) => [p.slug, p.tag]).filter(([, t]) => !!t));
