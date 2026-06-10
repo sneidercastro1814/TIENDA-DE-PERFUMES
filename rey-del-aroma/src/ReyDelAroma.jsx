@@ -296,10 +296,17 @@ body::after {
 .wa-btn:hover { background: #17924a; box-shadow: 0 10px 30px rgba(31,168,85,0.35); }
 
 /* ── FILTROS ── */
-.filters { padding: 0 52px; display: flex; background: var(--bg2); border-bottom: 1px solid rgba(0,0,0,0.07); }
+.filters { padding: 0 52px; display: flex; align-items: center; justify-content: space-between; gap: 16px; background: var(--bg2); border-bottom: 1px solid rgba(0,0,0,0.07); }
+.ftabs { display: flex; flex: 1; min-width: 0; overflow-x: auto; scrollbar-width: none; }
+.ftabs::-webkit-scrollbar { display: none; }
 .ftab { padding: 18px 24px; font-size: 12px; font-weight: 500; letter-spacing: 3px; text-transform: uppercase; cursor: pointer; color: var(--text-muted); border: none; border-bottom: 2px solid transparent; background: none; transition: all 0.25s; white-space: nowrap; }
 .ftab:hover { color: #999; }
 .ftab.act { color: var(--gold); border-bottom-color: var(--gold); }
+.sort-ctrl { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.sort-lbl { font-size: 11px; letter-spacing: 2px; text-transform: uppercase; color: var(--text-muted); font-weight: 600; white-space: nowrap; }
+.sort-sel { appearance: none; -webkit-appearance: none; background: var(--bg) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23c9a84c' stroke-width='3'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E") no-repeat right 12px center; border: 1px solid var(--border); border-radius: 6px; color: var(--text); font-family: var(--sans); font-size: 12.5px; font-weight: 600; letter-spacing: 0.3px; padding: 9px 32px 9px 13px; cursor: pointer; transition: border-color 0.2s; }
+.sort-sel:hover { border-color: var(--gold); }
+.sort-sel:focus { outline: none; border-color: var(--gold); box-shadow: 0 0 0 1px var(--gold); }
 
 /* ── PRODUCTOS ── */
 .products-wrap { padding: 56px 52px 88px; background: var(--bg); }
@@ -579,9 +586,10 @@ body::after {
   .feat-ring { width: 72px; height: 72px; }
   .feat-cap { font-size: 11px; letter-spacing: 1.5px; }
 
-  .filters { padding: 0 14px; overflow-x: auto; scrollbar-width: none; }
-  .filters::-webkit-scrollbar { display: none; }
+  .filters { padding: 0 14px; gap: 8px; }
   .ftab { padding: 14px 16px; font-size: 11px; }
+  .sort-lbl { display: none; }
+  .sort-sel { font-size: 12px; padding: 8px 28px 8px 11px; }
 
   .products-wrap { padding: 32px 16px 56px; }
   .pgrid { grid-template-columns: repeat(2,1fr); }
@@ -905,6 +913,24 @@ const EMPTY_FORM = {
 };
 
 const FILTER_TABS = ["Todos", "Para Él", "Para Ella", "Unisex", "Destacados", "Diseñador", "Árabes", "2 × $300.000"];
+// Opciones de ordenamiento del catálogo (las elige el cliente en el menú "Ordenar")
+const SORTS = [
+  { id: "recomendado", label: "Recomendado" },
+  { id: "price-asc",   label: "Precio: menor a mayor" },
+  { id: "price-desc",  label: "Precio: mayor a menor" },
+  { id: "name-asc",    label: "Nombre: A → Z" },
+  { id: "name-desc",   label: "Nombre: Z → A" },
+];
+function sortProducts(arr, mode) {
+  const a = [...arr];
+  switch (mode) {
+    case "price-asc":  return a.sort((x, y) => x.price - y.price);
+    case "price-desc": return a.sort((x, y) => y.price - x.price);
+    case "name-asc":   return a.sort((x, y) => x.name.localeCompare(y.name, "es"));
+    case "name-desc":  return a.sort((x, y) => y.name.localeCompare(x.name, "es"));
+    default:           return a; // recomendado = orden original del catálogo
+  }
+}
 const GENDERS = ["Para Él", "Para Ella", "Unisex"];
 const PROMO_LABEL = "2 X $300.000";
 
@@ -995,6 +1021,7 @@ export default function ReyDelAroma() {
   const [cart, setCart] = useState([]);
   const [cartOpen, setCartOpen] = useState(false);
   const [catFilter, setCatFilter] = useState("Todos");
+  const [sortBy, setSortBy] = useState("recomendado"); // ordenamiento elegido por el cliente
   const [toast, setToast] = useState(null);
   const [adminAuth, setAdminAuth] = useState(false);
   const [adminPw, setAdminPw] = useState("");
@@ -1016,7 +1043,7 @@ export default function ReyDelAroma() {
   /* ── CHECKOUT / PAGO ── */
   const [checkoutItems, setCheckoutItems] = useState([]);
   const [payMethod, setPayMethod] = useState("wompi");
-  const [coForm, setCoForm] = useState({ name: "", phone: "", email: "", city: "", address: "" });
+  const [coForm, setCoForm] = useState({ name: "", cedula: "", phone: "", email: "", city: "", address: "" });
   const [placing, setPlacing] = useState(false);
   const [payResult, setPayResult] = useState(() => (readWompiReturn().fromWompi ? { loading: true } : null)); // resultado tras volver de Wompi
 
@@ -1132,12 +1159,13 @@ export default function ReyDelAroma() {
   const cartCount = cart.reduce((s, i) => s + i.qty, 0);
   const cartTotal = cart.reduce((s, i) => s + i.price * i.qty, 0);
   const q = search.trim().toLowerCase();
-  const filtered = q
+  const matched = q
     ? products.filter((p) =>
         [p.name, p.fullName, p.brand, p.collection, p.category, p.subtitle, p.tag]
           .filter(Boolean).join(" ").toLowerCase().includes(q)
       )
     : products.filter((p) => matchFilter(p, catFilter) && (tagFilter === "Todos" || p.tag === tagFilter));
+  const filtered = sortProducts(matched, sortBy);
 
   // Resultados en vivo bajo la lupa (primeros 6 mientras el cliente escribe)
   const searchResults = q ? filtered.slice(0, 6) : [];
@@ -1166,7 +1194,7 @@ export default function ReyDelAroma() {
   const setCo = (key) => (e) => setCoForm((f) => ({ ...f, [key]: e.target.value }));
 
   const placeOrder = async () => {
-    if (!coForm.name.trim() || !coForm.phone.trim() || !coForm.city.trim() || !coForm.address.trim())
+    if (!coForm.name.trim() || !coForm.cedula.trim() || !coForm.phone.trim() || !coForm.city.trim() || !coForm.address.trim())
       return showToast("Completa tus datos de envío");
 
     const { subtotal, discount, shipping, total } = computeTotals();
@@ -1378,11 +1406,19 @@ export default function ReyDelAroma() {
         ))}
       </section>
 
-      {/* Filtros por categoría */}
+      {/* Filtros por categoría + menú de ordenamiento */}
       <div className="filters">
-        {FILTER_TABS.map((c) => (
-          <button key={c} className={`ftab${!q && catFilter === c ? " act" : ""}`} onClick={() => { setSearch(""); setCatFilter(c); }}>{c}</button>
-        ))}
+        <div className="ftabs">
+          {FILTER_TABS.map((c) => (
+            <button key={c} className={`ftab${!q && catFilter === c ? " act" : ""}`} onClick={() => { setSearch(""); setCatFilter(c); }}>{c}</button>
+          ))}
+        </div>
+        <div className="sort-ctrl">
+          <span className="sort-lbl">Ordenar</span>
+          <select className="sort-sel" value={sortBy} onChange={(e) => setSortBy(e.target.value)} aria-label="Ordenar perfumes">
+            {SORTS.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
+          </select>
+        </div>
       </div>
 
       {/* Filtro por familia olfativa (tipo de aroma) — combinable con la categoría */}
@@ -1668,10 +1704,11 @@ export default function ReyDelAroma() {
             <div className="co-sec-t">Tus datos de envío</div>
             <div className="co-form">
               <div className="fg full"><label className="fl">Nombre completo *</label><input className="fi" value={coForm.name} onChange={setCo("name")} placeholder="Ej. Ana Gómez" /></div>
+              <div className="fg"><label className="fl">Cédula / NIT *</label><input className="fi" type="text" inputMode="numeric" value={coForm.cedula} onChange={setCo("cedula")} placeholder="Ej. 1094…" /></div>
               <div className="fg"><label className="fl">Celular / WhatsApp *</label><input className="fi" type="tel" value={coForm.phone} onChange={setCo("phone")} placeholder="300 123 4567" /></div>
               <div className="fg"><label className="fl">Correo (opcional)</label><input className="fi" type="email" value={coForm.email} onChange={setCo("email")} placeholder="tu@correo.com" /></div>
               <div className="fg"><label className="fl">Ciudad *</label><input className="fi" value={coForm.city} onChange={setCo("city")} placeholder="Ej. Medellín" /></div>
-              <div className="fg"><label className="fl">Dirección de envío *</label><input className="fi" value={coForm.address} onChange={setCo("address")} placeholder="Calle 00 # 00-00, barrio" /></div>
+              <div className="fg full"><label className="fl">Dirección de envío *</label><input className="fi" value={coForm.address} onChange={setCo("address")} placeholder="Calle 00 # 00-00, barrio" /></div>
               <div className="fg full">
                 <label className="fl">Zona de envío *</label>
                 <select className="fsel" value={shipZone} onChange={(e) => setShipZone(e.target.value)}>
