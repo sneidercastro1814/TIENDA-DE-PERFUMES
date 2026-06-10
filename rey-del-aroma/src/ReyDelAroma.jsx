@@ -565,7 +565,7 @@ body::after {
   .nav-links .nl { padding: 8px 8px; letter-spacing: 1.4px; }
 }
 @media (max-width: 768px) {
-  .nav { padding: 0 18px; position: relative; height: 64px; }
+  .nav { padding: 0 18px; position: sticky; top: 0; height: 64px; }
   .login-screen { min-height: calc(100vh - 64px); padding: 32px 18px 48px; }
   .login-card { padding: 40px 26px 32px; border-radius: 18px; }
   .login-title { font-size: 32px; }
