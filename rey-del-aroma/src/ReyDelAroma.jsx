@@ -857,6 +857,51 @@ body::after {
   .coupon-create { grid-template-columns: 1fr; gap: 12px; padding: 18px; }
   .coupon-add-btn { width: 100%; }
 }
+
+/* ── PÁGINA DE CATEGORÍA (pestañas independientes) ── */
+.catpage { background: var(--bg); }
+.catpage-hero { position: relative; min-height: 340px; display: flex; align-items: center; justify-content: center; text-align: center; overflow: hidden; border-bottom: 1px solid var(--border); }
+.catpage-hero-bg { position: absolute; inset: 0; background-size: cover; background-position: center; transform: scale(1.06); }
+.catpage-hero-ov { position: absolute; inset: 0; background: linear-gradient(180deg, rgba(10,10,9,0.80) 0%, rgba(10,10,9,0.60) 45%, rgba(10,10,9,0.88) 100%); }
+.catpage-hero-in { position: relative; z-index: 2; padding: 70px 24px 60px; max-width: 760px; animation: catFade 0.6s ease; }
+@keyframes catFade { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: translateY(0); } }
+.catpage-eyebrow { font-size: 12px; font-weight: 600; letter-spacing: 5px; text-transform: uppercase; color: var(--gold-l); margin-bottom: 16px; }
+.catpage-title { font-family: var(--serif); font-size: 58px; font-weight: 600; color: #fff; line-height: 1.05; letter-spacing: 0.5px; }
+.catpage-title span { color: var(--gold); font-style: italic; }
+.catpage-desc { font-size: 16px; color: rgba(255,255,255,0.82); line-height: 1.6; margin: 18px auto 0; max-width: 560px; }
+.catpage-count { display: inline-block; margin-top: 26px; font-size: 12px; letter-spacing: 2.5px; text-transform: uppercase; color: var(--gold-l); border: 1px solid rgba(201,168,76,0.45); border-radius: 999px; padding: 8px 18px; }
+.catpage-bc { position: absolute; top: 22px; left: 0; right: 0; z-index: 3; display: flex; gap: 8px; align-items: center; justify-content: center; font-size: 11.5px; color: rgba(255,255,255,0.7); letter-spacing: 1.5px; text-transform: uppercase; }
+.catpage-bc .bc-lnk { cursor: pointer; transition: color 0.2s; }
+.catpage-bc .bc-lnk:hover { color: var(--gold-l); }
+.catpage-bc .cur { color: var(--gold); }
+
+/* Barra de pestañas */
+.cat-tabs { display: flex; gap: 10px; align-items: center; overflow-x: auto; scrollbar-width: none; padding: 18px 52px; background: rgba(12,12,11,0.97); -webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px); border-bottom: 1px solid var(--border); position: sticky; top: 72px; z-index: 60; }
+.cat-tabs::-webkit-scrollbar { display: none; }
+.cat-tab { display: inline-flex; align-items: center; gap: 7px; background: rgba(255,255,255,0.06); border: 1px solid rgba(201,168,76,0.32); color: #e9e9e4; font-family: var(--sans); font-size: 12.5px; font-weight: 600; letter-spacing: 0.6px; padding: 10px 18px; border-radius: 999px; cursor: pointer; transition: all 0.2s; white-space: nowrap; flex-shrink: 0; }
+.cat-tab:hover { border-color: var(--gold); color: #fff; transform: translateY(-1px); }
+.cat-tab.act { background: linear-gradient(135deg, var(--gold-l), var(--gold)); border-color: var(--gold); color: #1a1208; box-shadow: 0 4px 16px rgba(201,168,76,0.32); }
+.cat-tab-home { background: none; border-color: rgba(255,255,255,0.22); color: rgba(255,255,255,0.7); }
+.cat-tab-home:hover { border-color: rgba(255,255,255,0.5); color: #fff; }
+
+/* Barra de herramientas (volver + ordenar) */
+.catpage-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 16px; max-width: 1180px; margin: 0 auto; padding: 30px 52px 0; flex-wrap: wrap; }
+.catpage-back { display: inline-flex; align-items: center; gap: 8px; background: none; border: 1px solid var(--border); color: var(--text-dim); font-family: var(--sans); font-size: 12.5px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; padding: 11px 20px; border-radius: 999px; cursor: pointer; transition: all 0.2s; }
+.catpage-back:hover { border-color: var(--gold); color: var(--gold-d); transform: translateX(-2px); }
+
+@media (max-width: 768px) {
+  .catpage-hero { min-height: 268px; }
+  .catpage-title { font-size: 42px; }
+  .catpage-desc { font-size: 14px; }
+  .cat-tabs { padding: 14px 16px; gap: 8px; top: 64px; }
+  .cat-tab { font-size: 11.5px; padding: 9px 14px; }
+  .catpage-toolbar { padding: 22px 16px 0; gap: 12px; }
+}
+@media (max-width: 480px) {
+  .catpage-title { font-size: 33px; }
+  .catpage-hero { min-height: 230px; }
+  .catpage-eyebrow { letter-spacing: 3.5px; }
+}
 `;
 
 /* ──────────────────────────────────────────────────────────────
@@ -913,6 +958,21 @@ const EMPTY_FORM = {
 };
 
 const FILTER_TABS = ["Todos", "Para Él", "Para Ella", "Unisex", "Destacados", "Diseñador", "Árabes", "2 × $300.000"];
+
+/* Pestañas que abren su propia página al hacer clic (orden de aparición) */
+const CATEGORY_TABS = ["Para Él", "Para Ella", "Unisex", "2 × $300.000", "Diseñador", "Árabes", "Destacados"];
+
+/* Contenido del encabezado (hero) de cada página de categoría.
+   La imagen se usa como fondo del banner; el resto es texto editable. */
+const CATEGORY_META = {
+  "Para Él":       { eyebrow: "Colección", pre: "Para",          hi: "Él",          banner: "feat1",   desc: "Fragancias intensas, amaderadas y con carácter. Encuentra el perfume que define tu presencia." },
+  "Para Ella":     { eyebrow: "Colección", pre: "Para",          hi: "Ella",        banner: "feat2",   desc: "Aromas florales, dulces y envolventes. Esencias pensadas para realzar tu elegancia." },
+  "Unisex":        { eyebrow: "Colección", pre: "",              hi: "Unisex",      banner: "feat3",   desc: "Fragancias versátiles que rompen las reglas. Para quienes eligen su aroma sin etiquetas." },
+  "2 × $300.000":  { eyebrow: "Promoción", pre: "Promo",         hi: "2 × $300.000", banner: "banner2", desc: "Arma tu combo: lleva dos perfumes árabes seleccionados por $300.000. La mejor relación precio–calidad." },
+  "Diseñador":     { eyebrow: "Colección", pre: "Perfumes de",   hi: "Diseñador",   banner: "banner1", desc: "Las casas más reconocidas del mundo. 100% originales, con la firma de las grandes marcas." },
+  "Árabes":        { eyebrow: "Colección", pre: "Perfumes",      hi: "Árabes",      banner: "banner3", desc: "Lattafa, Armaf, Maison Alhambra y más. Proyección y duración excepcionales al mejor precio." },
+  "Destacados":    { eyebrow: "Selección", pre: "Productos",     hi: "Destacados",  banner: "banner1", desc: "Nuestra selección curada: los más vendidos y mejor valorados por nuestros clientes." },
+};
 // Opciones de ordenamiento del catálogo (las elige el cliente en el menú "Ordenar")
 const SORTS = [
   { id: "recomendado", label: "Recomendado" },
@@ -1132,6 +1192,20 @@ export default function ReyDelAroma() {
   const goCatalog = () => document.getElementById("cat")?.scrollIntoView({ behavior: "smooth" });
   const quickFilter = (f) => { setView("store"); setCatFilter(f); setTagFilter("Todos"); setSearch(""); setSearchOpen(false); setMenuOpen(false); setTimeout(goCatalog, 80); };
   const submitSearch = () => { setView("store"); setMenuOpen(false); setTimeout(goCatalog, 80); };
+
+  /* Abre la página propia de una categoría (Para Él, Para Ella, Unisex, 2 × $300.000, …) */
+  const goCategory = (f) => {
+    setCatFilter(f);
+    setTagFilter("Todos");
+    setSortBy("recomendado");
+    setSearch("");
+    setSearchOpen(false);
+    setMenuOpen(false);
+    setView("category");
+    window.scrollTo({ top: 0 });
+  };
+  /* Decide a dónde ir: "Todos"/"Catálogo" → tienda; el resto → su propia página */
+  const goFilter = (f) => { if (f === "Todos") quickFilter("Todos"); else goCategory(f); };
 
   const openProduct = (p) => {
     setSelectedProduct(p);
@@ -1377,7 +1451,7 @@ export default function ReyDelAroma() {
         <div className="hc-viewport">
           <div className="hc-track" style={{ transform: `translateX(-${slide * 100}%)` }}>
             {banners.map((b, i) => (
-              <button key={i} className="hc-slide" onClick={() => quickFilter(b.filter)} aria-label={b.alt}>
+              <button key={i} className="hc-slide" onClick={() => goFilter(b.filter)} aria-label={b.alt}>
                 <span className="hc-slide-bg" style={{ backgroundImage: `url(${b.src})` }} aria-hidden="true" />
                 <img src={b.src} alt={b.alt} className="hc-slide-img" loading={i === 0 ? "eager" : "lazy"} />
               </button>
@@ -1399,7 +1473,7 @@ export default function ReyDelAroma() {
       {/* Destacados (íconos dorados) */}
       <section className="featured">
         {featBadges.map((b, i) => (
-          <button key={i} className={`feat-badge${b.filter ? " clk" : ""}`} onClick={() => b.filter && quickFilter(b.filter)} disabled={!b.filter} style={!b.filter ? { cursor: "default" } : undefined}>
+          <button key={i} className={`feat-badge${b.filter ? " clk" : ""}`} onClick={() => b.filter && goFilter(b.filter)} disabled={!b.filter} style={!b.filter ? { cursor: "default" } : undefined}>
             <span className="feat-ring"><img src={b.img} alt={b.cap} loading="lazy" /></span>
             <span className="feat-cap">{b.cap}</span>
           </button>
@@ -1484,7 +1558,7 @@ export default function ReyDelAroma() {
         </div>
         <div className="coll-grid">
           {collections.map((c, i) => (
-            <div key={i} className="coll-card" onClick={() => quickFilter(c.filter)}>
+            <div key={i} className="coll-card" onClick={() => goFilter(c.filter)}>
               <img className="coll-img" src={c.img} alt={c.name} loading="lazy" />
               <div className="coll-overlay">
                 <div className="coll-cat">{c.cat}</div>
@@ -1533,6 +1607,97 @@ export default function ReyDelAroma() {
       <Footer />
     </>
   );
+
+  /* ── VISTA CATEGORÍA (página propia con pestañas) ── */
+  const CategoryView = () => {
+    const IMG = { banner1, banner2, banner3, feat1, feat2, feat3, feat4 };
+    const meta = CATEGORY_META[catFilter] || { eyebrow: "Colección", pre: "", hi: catFilter, banner: "banner1", desc: "" };
+    const heroImg = IMG[meta.banner] || banner1;
+    const goHome = () => { setView("store"); setCatFilter("Todos"); setTagFilter("Todos"); window.scrollTo({ top: 0 }); };
+    return (
+      <div className="catpage">
+        {/* Encabezado de la categoría */}
+        <section className="catpage-hero">
+          <div className="catpage-hero-bg" style={{ backgroundImage: `url(${heroImg})` }} aria-hidden="true" />
+          <div className="catpage-hero-ov" aria-hidden="true" />
+          <div className="catpage-bc">
+            <span className="bc-lnk" onClick={goHome}>Inicio</span>
+            <span>›</span>
+            <span className="cur">{catFilter}</span>
+          </div>
+          <div className="catpage-hero-in" key={catFilter}>
+            <div className="catpage-eyebrow">{meta.eyebrow}</div>
+            <h1 className="catpage-title">{meta.pre ? `${meta.pre} ` : ""}<span>{meta.hi}</span></h1>
+            {meta.desc && <p className="catpage-desc">{meta.desc}</p>}
+            <span className="catpage-count">{filtered.length} fragancia{filtered.length !== 1 ? "s" : ""}</span>
+          </div>
+        </section>
+
+        {/* Pestañas para saltar entre categorías */}
+        <div className="cat-tabs">
+          <button className="cat-tab cat-tab-home" onClick={() => quickFilter("Todos")}>← Todo el catálogo</button>
+          {CATEGORY_TABS.map((t) => (
+            <button key={t} className={`cat-tab${catFilter === t ? " act" : ""}`} onClick={() => goCategory(t)}>{t}</button>
+          ))}
+        </div>
+
+        {/* Barra: volver + ordenar */}
+        <div className="catpage-toolbar">
+          <button className="catpage-back" onClick={goHome}>← Volver a la tienda</button>
+          <div className="sort-ctrl">
+            <span className="sort-lbl">Ordenar</span>
+            <select className="sort-sel" value={sortBy} onChange={(e) => setSortBy(e.target.value)} aria-label="Ordenar perfumes">
+              {SORTS.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
+            </select>
+          </div>
+        </div>
+
+        {/* Filtro por familia olfativa (tipo de aroma) */}
+        <div className="filters fam-filters">
+          <span className="fam-label">Tipo de aroma</span>
+          <button className={`fam-tab${tagFilter === "Todos" ? " act" : ""}`} onClick={() => setTagFilter("Todos")}>Todos</button>
+          {FAMILIES.map((fam) => (
+            <button key={fam} className={`fam-tab${tagFilter === fam ? " act" : ""}`} onClick={() => setTagFilter(fam)} title={FAMILY_META[fam]?.hint || ""}>
+              <span className="fam-emoji">{FAMILY_META[fam]?.emoji || "✨"}</span>{fam}
+            </button>
+          ))}
+        </div>
+
+        {/* Productos de la categoría */}
+        <div className="products-wrap">
+          <div className="pgrid">
+            {filtered.map((p) => (
+              <div key={p.id} className="pcard" onClick={() => openProduct(p)}>
+                <div className="pcard-img">
+                  {p.promo && <span className="pcard-badge">2 × $300.000</span>}
+                  {p.image ? <img src={p.image} alt={p.name} className="pcard-real-img" loading="lazy" /> : <NoImg />}
+                </div>
+                <div className="pcard-body">
+                  <div className="pcard-cat">{p.brand}</div>
+                  <div className="pcard-name">{p.name}</div>
+                  <div className="pcard-sub">{p.subtitle || p.size || p.collection}</div>
+                  {p.tag && <span className="pcard-tag">{FAMILY_META[p.tag]?.emoji || "✨"} {p.tag}</span>}
+                  <div className="pcard-price">{cop(p.price)} <span className="pcard-curr">COP</span></div>
+                </div>
+                <div className="pcard-foot">
+                  <span className="pcard-orig">Original</span>
+                  <button className="quick-buy" onClick={(e) => { e.stopPropagation(); addToCart(p, p.size || "", 1); }}>+ Agregar</button>
+                </div>
+              </div>
+            ))}
+            {filtered.length === 0 && (
+              <div className="empty-state">
+                <div className="empty-state-icon">🫙</div>
+                <p>No hay productos en esta categoría por ahora.</p>
+              </div>
+            )}
+          </div>
+        </div>
+
+        <Footer />
+      </div>
+    );
+  };
 
   /* ── VISTA DETALLE ── */
   const ProductDetailView = () => {
@@ -2019,10 +2184,10 @@ export default function ReyDelAroma() {
             <div className="nav-links">
               <button className="nl" onClick={() => { setView("store"); setCatFilter("Todos"); window.scrollTo({ top: 0 }); }}>Inicio</button>
               <button className="nl" onClick={() => quickFilter("Todos")}>Catálogo</button>
-              <button className="nl" onClick={() => quickFilter("Para Él")}>Para Él</button>
-              <button className="nl" onClick={() => quickFilter("Para Ella")}>Para Ella</button>
-              <button className="nl" onClick={() => quickFilter("Unisex")}>Unisex</button>
-              <button className="nl" onClick={() => quickFilter("2 × $300.000")}>2 × $300.000</button>
+              <button className="nl" onClick={() => goFilter("Para Él")}>Para Él</button>
+              <button className="nl" onClick={() => goFilter("Para Ella")}>Para Ella</button>
+              <button className="nl" onClick={() => goFilter("Unisex")}>Unisex</button>
+              <button className="nl" onClick={() => goFilter("2 × $300.000")}>2 × $300.000</button>
             </div>
             <div className="nav-r">
               <button className={`icon-btn${searchOpen ? " act" : ""}`} onClick={() => { setSearchOpen((o) => !o); setMenuOpen(false); }} aria-label="Buscar">🔍</button>
@@ -2035,12 +2200,12 @@ export default function ReyDelAroma() {
             <div className={`mobile-menu${menuOpen ? " open" : ""}`}>
               <button className="nl" onClick={() => { setView("store"); setCatFilter("Todos"); setMenuOpen(false); window.scrollTo({ top: 0 }); }}>Inicio</button>
               <button className="nl" onClick={() => quickFilter("Todos")}>Catálogo</button>
-              <button className="nl" onClick={() => quickFilter("Para Él")}>Para Él</button>
-              <button className="nl" onClick={() => quickFilter("Para Ella")}>Para Ella</button>
-              <button className="nl" onClick={() => quickFilter("Unisex")}>Unisex</button>
-              <button className="nl" onClick={() => quickFilter("Diseñador")}>Diseñador</button>
-              <button className="nl" onClick={() => quickFilter("Árabes")}>Árabes</button>
-              <button className="nl" onClick={() => quickFilter("2 × $300.000")}>2 × $300.000</button>
+              <button className="nl" onClick={() => goFilter("Para Él")}>Para Él</button>
+              <button className="nl" onClick={() => goFilter("Para Ella")}>Para Ella</button>
+              <button className="nl" onClick={() => goFilter("Unisex")}>Unisex</button>
+              <button className="nl" onClick={() => goFilter("Diseñador")}>Diseñador</button>
+              <button className="nl" onClick={() => goFilter("Árabes")}>Árabes</button>
+              <button className="nl" onClick={() => goFilter("2 × $300.000")}>2 × $300.000</button>
             </div>
           </>
         ) : (
@@ -2096,6 +2261,7 @@ export default function ReyDelAroma() {
       )}
 
       {view === "store" && StoreView()}
+      {view === "category" && CategoryView()}
       {view === "product" && ProductDetailView()}
       {view === "checkout" && CheckoutView()}
       {view === "pago-resultado" && PaymentResultView()}
