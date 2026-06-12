@@ -39,10 +39,10 @@ Necesitas tener **Node.js 18+** instalado.
 
 Todo lo importante está al inicio del archivo **`src/ReyDelAroma.jsx`**:
 
-    const WHATSAPP = "573173293542";   // tu número de WhatsApp (con 57 al inicio, sin + ni espacios)
+    const WHATSAPP = "573189917571";   // tu número de WhatsApp (con 57 al inicio, sin + ni espacios)
     const ADMIN_PASSWORD = "admin123"; // cambia tu contraseña del panel de administración
 
-- **Cambiar el número de WhatsApp:** edita `WHATSAPP`. Ya está puesto el tuyo: `573173293542`.
+- **Cambiar el número de WhatsApp:** edita `WHATSAPP`. Ya está puesto el tuyo: `573189917571`.
 - **Cambiar la contraseña del admin:** edita `ADMIN_PASSWORD` (por defecto `admin123`).
 
 Después de editar, vuelve a correr `npm run build` para actualizar la carpeta `dist/`.

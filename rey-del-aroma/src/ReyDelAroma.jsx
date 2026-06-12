@@ -15,7 +15,7 @@ import logoSistecredito from "./assets/payments/sistecredito.png";
 /* ════════════════════════════════════════════════════════════════
    CONFIGURACIÓN — edita estos valores
    ════════════════════════════════════════════════════════════════ */
-const WHATSAPP = "573173293542";          // ← Tu número de WhatsApp (con 57)
+const WHATSAPP = "573189917571";          // ← Tu número de WhatsApp (con 57)
 const ADMIN_PASSWORD = "admin123";         // ← Cambia tu contraseña de admin
 const LS_KEY = "rda-catalog-v3";
 const LS_COUPONS = "rda-coupons-v1";       // ← Cupones guardados (los crea el admin)
