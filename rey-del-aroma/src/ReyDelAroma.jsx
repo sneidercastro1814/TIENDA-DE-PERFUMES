@@ -1642,29 +1642,10 @@ export default function ReyDelAroma() {
 
   /* ── VISTA CATEGORÍA (página propia con pestañas) ── */
   const CategoryView = () => {
-    const IMG = { banner1, banner2, banner3, feat1, feat2, feat3, feat4 };
     const meta = CATEGORY_META[catFilter] || { eyebrow: "Colección", pre: "", hi: catFilter, banner: "banner1", desc: "" };
-    const heroImg = IMG[meta.banner] || banner1;
     const goHome = () => { setView("store"); setCatFilter("Todos"); setTagFilter("Todos"); try { window.history.replaceState({}, "", homeUrl()); } catch { /* ignore */ } window.scrollTo({ top: 0 }); };
     return (
       <div className="catpage">
-        {/* Encabezado de la categoría */}
-        <section className="catpage-hero">
-          <div className="catpage-hero-bg" style={{ backgroundImage: `url(${heroImg})` }} aria-hidden="true" />
-          <div className="catpage-hero-ov" aria-hidden="true" />
-          <div className="catpage-bc">
-            <span className="bc-lnk" onClick={goHome}>Inicio</span>
-            <span>›</span>
-            <span className="cur">{catFilter}</span>
-          </div>
-          <div className="catpage-hero-in" key={catFilter}>
-            <div className="catpage-eyebrow">{meta.eyebrow}</div>
-            <h1 className="catpage-title">{meta.pre ? `${meta.pre} ` : ""}<span>{meta.hi}</span></h1>
-            {meta.desc && <p className="catpage-desc">{meta.desc}</p>}
-            <span className="catpage-count">{filtered.length} fragancia{filtered.length !== 1 ? "s" : ""}</span>
-          </div>
-        </section>
-
         {/* Pestañas para saltar entre categorías */}
         <div className="cat-tabs">
           <button className="cat-tab cat-tab-home" onClick={() => quickFilter("Todos")}>← Todo el catálogo</button>
@@ -1697,6 +1678,10 @@ export default function ReyDelAroma() {
 
         {/* Productos de la categoría */}
         <div className="products-wrap">
+          <div className="sec-hdr">
+            <h2 className="sec-title">{meta.pre ? `${meta.pre} ` : ""}<span>{meta.hi}</span></h2>
+            <span className="sec-cnt">{filtered.length} fragancia{filtered.length !== 1 ? "s" : ""}</span>
+          </div>
           <div className="pgrid">
             {filtered.map((p) => (
               <div key={p.id} className="pcard" onClick={() => openProduct(p)}>
