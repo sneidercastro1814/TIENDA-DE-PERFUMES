@@ -793,6 +793,15 @@ a.nl { text-decoration: none; display: inline-flex; align-items: center; }
 .fam-tab.act { background: linear-gradient(135deg, var(--gold-l), var(--gold)); border-color: var(--gold); color: #1a1208; box-shadow: 0 4px 14px rgba(201,168,76,0.3); }
 .fam-emoji { font-size: 14px; line-height: 1; }
 
+/* ── BANDA TIPO DE AROMA (debajo del carrusel) ── */
+.aroma-bar { background: var(--bg2); border-top: 1px solid rgba(0,0,0,0.05); border-bottom: 1px solid rgba(0,0,0,0.06); padding: 30px 52px 34px; text-align: center; }
+.aroma-bar-title { font-family: var(--serif); font-size: 21px; font-weight: 600; color: var(--text); letter-spacing: 0.3px; margin-bottom: 18px; }
+.aroma-bar-title span { color: var(--gold); font-style: italic; }
+.aroma-bar-pills { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; max-width: 1000px; margin: 0 auto; }
+.aroma-bar-pills .fam-tab { background: var(--bg); }
+.aroma-bar-pills .fam-tab.act { background: linear-gradient(135deg, var(--gold-l), var(--gold)); }
+@media (max-width: 768px) { .aroma-bar { padding: 24px 16px 26px; } .aroma-bar-title { font-size: 18px; margin-bottom: 14px; } .aroma-bar-pills { gap: 8px; } }
+
 /* ── ETIQUETA DE AROMA EN TARJETA Y DETALLE ── */
 .pcard-tag { display: inline-flex; align-items: center; gap: 4px; font-size: 10.5px; letter-spacing: 0.6px; text-transform: uppercase; font-weight: 700; color: var(--gold-d); background: rgba(201,168,76,0.12); border: 1px solid var(--border); padding: 4px 9px; border-radius: 999px; margin-bottom: 12px; }
 .pd-chip.tag { background: rgba(201,168,76,0.14); border-color: var(--gold); color: var(--gold-d); font-weight: 700; }
@@ -1434,7 +1443,7 @@ export default function ReyDelAroma() {
   const featBadges = [
     { img: feat1, cap: "Hombre", filter: "Para Él" },
     { img: feat2, cap: "Mujer", filter: "Para Ella" },
-    { img: feat4, cap: "Promo", filter: "2 × $300.000" },
+    { img: feat4, cap: "2 × $300.000", filter: "2 × $300.000" },
     { img: feat3, cap: "Productos Destacados", filter: "Destacados" },
   ];
   const collections = [
@@ -1503,6 +1512,21 @@ export default function ReyDelAroma() {
         </div>
       </section>
 
+      {/* Filtro por tipo de aroma — debajo del carrusel, en banda propia */}
+      {!q && (
+        <section className="aroma-bar">
+          <div className="aroma-bar-title">Explora por <span>tipo de aroma</span></div>
+          <div className="aroma-bar-pills">
+            <button className={`fam-tab${tagFilter === "Todos" ? " act" : ""}`} onClick={() => setTagFilter("Todos")}>Todos</button>
+            {FAMILIES.map((fam) => (
+              <button key={fam} className={`fam-tab${tagFilter === fam ? " act" : ""}`} onClick={() => setTagFilter(fam)} title={FAMILY_META[fam]?.hint || ""}>
+                <span className="fam-emoji">{FAMILY_META[fam]?.emoji || "✨"}</span>{fam}
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
+
       {/* Destacados (íconos dorados) */}
       <section className="featured">
         {featBadges.map((b, i) => (
@@ -1527,19 +1551,6 @@ export default function ReyDelAroma() {
           </select>
         </div>
       </div>
-
-      {/* Filtro por familia olfativa (tipo de aroma) — combinable con la categoría */}
-      {!q && (
-        <div className="filters fam-filters">
-          <span className="fam-label">Tipo de aroma</span>
-          <button className={`fam-tab${tagFilter === "Todos" ? " act" : ""}`} onClick={() => setTagFilter("Todos")}>Todos</button>
-          {FAMILIES.map((fam) => (
-            <button key={fam} className={`fam-tab${tagFilter === fam ? " act" : ""}`} onClick={() => setTagFilter(fam)} title={FAMILY_META[fam]?.hint || ""}>
-              <span className="fam-emoji">{FAMILY_META[fam]?.emoji || "✨"}</span>{fam}
-            </button>
-          ))}
-        </div>
-      )}
 
       {/* Productos */}
       <div className="products-wrap" id="cat">
