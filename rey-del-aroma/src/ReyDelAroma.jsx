@@ -240,6 +240,8 @@ body::after {
 .nl::after { content: ''; position: absolute; bottom: 2px; left: 50%; right: 50%; height: 1px; background: var(--gold); transition: left 0.35s, right 0.35s; }
 .nl:hover::after, .nl.act::after { left: 13px; right: 13px; }
 .nl:hover, .nl.act { color: var(--gold); }
+a.nl { text-decoration: none; display: inline-flex; align-items: center; }
+.mobile-menu a.nl { display: block; }
 .nav-r { display: flex; align-items: center; gap: 6px; }
 .icon-btn { background: none; border: 1px solid transparent; color: rgba(255,255,255,0.8); cursor: pointer; font-size: 18px; padding: 7px 10px; transition: all 0.25s; position: relative; line-height: 1; border-radius: 2px; }
 .icon-btn:hover { color: var(--gold); border-color: var(--border); background: rgba(255,255,255,0.07); }
@@ -973,6 +975,19 @@ const CATEGORY_META = {
   "Árabes":        { eyebrow: "Colección", pre: "Perfumes",      hi: "Árabes",      banner: "banner3", desc: "Lattafa, Armaf, Maison Alhambra y más. Proyección y duración excepcionales al mejor precio." },
   "Destacados":    { eyebrow: "Selección", pre: "Productos",     hi: "Destacados",  banner: "banner1", desc: "Nuestra selección curada: los más vendidos y mejor valorados por nuestros clientes." },
 };
+
+/* Slug de URL de cada categoría → permite abrir cada una en una PESTAÑA NUEVA
+   del navegador con un enlace tipo  ?categoria=para-el  */
+const CATEGORY_SLUGS = {
+  "Para Él": "para-el",
+  "Para Ella": "para-ella",
+  "Unisex": "unisex",
+  "2 × $300.000": "promo",
+  "Diseñador": "disenador",
+  "Árabes": "arabes",
+  "Destacados": "destacados",
+};
+const SLUG_TO_CATEGORY = Object.fromEntries(Object.entries(CATEGORY_SLUGS).map(([name, slug]) => [slug, name]));
 // Opciones de ordenamiento del catálogo (las elige el cliente en el menú "Ordenar")
 const SORTS = [
   { id: "recomendado", label: "Recomendado" },
@@ -1070,17 +1085,33 @@ function readWompiReturn() {
   }
 }
 
+/* Lee ?categoria=<slug> de la URL y devuelve el nombre de la categoría (o null).
+   Es lo que permite que una pestaña nueva se abra ya mostrando esa categoría. */
+function readCategoryParam() {
+  try {
+    const slug = new URLSearchParams(window.location.search).get("categoria");
+    return slug && SLUG_TO_CATEGORY[slug] ? SLUG_TO_CATEGORY[slug] : null;
+  } catch { return null; }
+}
+/* URLs para abrir en pestañas nuevas (inicio y cada categoría). */
+function homeUrl() { return window.location.origin + window.location.pathname; }
+function categoryUrl(name) {
+  const slug = CATEGORY_SLUGS[name];
+  return slug ? `${homeUrl()}?categoria=${slug}` : homeUrl();
+}
+
 /* ──────────────────────────────────────────────────────────────
    COMPONENTE PRINCIPAL
 ────────────────────────────────────────────────────────────── */
 export default function ReyDelAroma() {
-  const [view, setView] = useState(() => (readWompiReturn().fromWompi ? "pago-resultado" : "store"));
+  const initialCat = readCategoryParam(); // si la URL trae ?categoria=… abrimos esa página directamente
+  const [view, setView] = useState(() => (readWompiReturn().fromWompi ? "pago-resultado" : (initialCat ? "category" : "store")));
   const [products, setProducts] = useState(loadInitialProducts);
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [qty, setQty] = useState(1);
   const [cart, setCart] = useState([]);
   const [cartOpen, setCartOpen] = useState(false);
-  const [catFilter, setCatFilter] = useState("Todos");
+  const [catFilter, setCatFilter] = useState(initialCat || "Todos");
   const [sortBy, setSortBy] = useState("recomendado"); // ordenamiento elegido por el cliente
   const [toast, setToast] = useState(null);
   const [adminAuth, setAdminAuth] = useState(false);
@@ -1190,7 +1221,7 @@ export default function ReyDelAroma() {
   };
 
   const goCatalog = () => document.getElementById("cat")?.scrollIntoView({ behavior: "smooth" });
-  const quickFilter = (f) => { setView("store"); setCatFilter(f); setTagFilter("Todos"); setSearch(""); setSearchOpen(false); setMenuOpen(false); setTimeout(goCatalog, 80); };
+  const quickFilter = (f) => { setView("store"); setCatFilter(f); setTagFilter("Todos"); setSearch(""); setSearchOpen(false); setMenuOpen(false); try { window.history.replaceState({}, "", homeUrl()); } catch { /* ignore */ } setTimeout(goCatalog, 80); };
   const submitSearch = () => { setView("store"); setMenuOpen(false); setTimeout(goCatalog, 80); };
 
   /* Abre la página propia de una categoría (Para Él, Para Ella, Unisex, 2 × $300.000, …) */
@@ -1202,6 +1233,7 @@ export default function ReyDelAroma() {
     setSearchOpen(false);
     setMenuOpen(false);
     setView("category");
+    try { window.history.replaceState({}, "", categoryUrl(f)); } catch { /* ignore */ }
     window.scrollTo({ top: 0 });
   };
   /* Decide a dónde ir: "Todos"/"Catálogo" → tienda; el resto → su propia página */
@@ -1613,7 +1645,7 @@ export default function ReyDelAroma() {
     const IMG = { banner1, banner2, banner3, feat1, feat2, feat3, feat4 };
     const meta = CATEGORY_META[catFilter] || { eyebrow: "Colección", pre: "", hi: catFilter, banner: "banner1", desc: "" };
     const heroImg = IMG[meta.banner] || banner1;
-    const goHome = () => { setView("store"); setCatFilter("Todos"); setTagFilter("Todos"); window.scrollTo({ top: 0 }); };
+    const goHome = () => { setView("store"); setCatFilter("Todos"); setTagFilter("Todos"); try { window.history.replaceState({}, "", homeUrl()); } catch { /* ignore */ } window.scrollTo({ top: 0 }); };
     return (
       <div className="catpage">
         {/* Encabezado de la categoría */}
@@ -2173,7 +2205,7 @@ export default function ReyDelAroma() {
       )}
 
       <nav className="nav">
-        <div className="nav-logo" onClick={() => { setView("store"); setCatFilter("Todos"); setMenuOpen(false); window.scrollTo({ top: 0 }); }}>
+        <div className="nav-logo" onClick={() => { setView("store"); setCatFilter("Todos"); setMenuOpen(false); try { window.history.replaceState({}, "", homeUrl()); } catch { /* ignore */ } window.scrollTo({ top: 0 }); }}>
           <img className="nav-logo-img" src={logoPrincipal} alt="Rey del Aroma" />
           <div className="nav-logo-text"><span className="l-rey">REY</span><span className="l-da">DEL AROMA</span></div>
         </div>
@@ -2182,12 +2214,12 @@ export default function ReyDelAroma() {
           <>
             <div className="nav-sep" />
             <div className="nav-links">
-              <button className="nl" onClick={() => { setView("store"); setCatFilter("Todos"); window.scrollTo({ top: 0 }); }}>Inicio</button>
-              <button className="nl" onClick={() => quickFilter("Todos")}>Catálogo</button>
-              <button className="nl" onClick={() => goFilter("Para Él")}>Para Él</button>
-              <button className="nl" onClick={() => goFilter("Para Ella")}>Para Ella</button>
-              <button className="nl" onClick={() => goFilter("Unisex")}>Unisex</button>
-              <button className="nl" onClick={() => goFilter("2 × $300.000")}>2 × $300.000</button>
+              <a className="nl" href={homeUrl()} target="_blank" rel="noopener noreferrer">Inicio</a>
+              <a className="nl" href={homeUrl()} target="_blank" rel="noopener noreferrer">Catálogo</a>
+              <a className="nl" href={categoryUrl("Para Él")} target="_blank" rel="noopener noreferrer">Para Él</a>
+              <a className="nl" href={categoryUrl("Para Ella")} target="_blank" rel="noopener noreferrer">Para Ella</a>
+              <a className="nl" href={categoryUrl("Unisex")} target="_blank" rel="noopener noreferrer">Unisex</a>
+              <a className="nl" href={categoryUrl("2 × $300.000")} target="_blank" rel="noopener noreferrer">2 × $300.000</a>
             </div>
             <div className="nav-r">
               <button className={`icon-btn${searchOpen ? " act" : ""}`} onClick={() => { setSearchOpen((o) => !o); setMenuOpen(false); }} aria-label="Buscar">🔍</button>
@@ -2198,14 +2230,14 @@ export default function ReyDelAroma() {
               </button>
             </div>
             <div className={`mobile-menu${menuOpen ? " open" : ""}`}>
-              <button className="nl" onClick={() => { setView("store"); setCatFilter("Todos"); setMenuOpen(false); window.scrollTo({ top: 0 }); }}>Inicio</button>
-              <button className="nl" onClick={() => quickFilter("Todos")}>Catálogo</button>
-              <button className="nl" onClick={() => goFilter("Para Él")}>Para Él</button>
-              <button className="nl" onClick={() => goFilter("Para Ella")}>Para Ella</button>
-              <button className="nl" onClick={() => goFilter("Unisex")}>Unisex</button>
-              <button className="nl" onClick={() => goFilter("Diseñador")}>Diseñador</button>
-              <button className="nl" onClick={() => goFilter("Árabes")}>Árabes</button>
-              <button className="nl" onClick={() => goFilter("2 × $300.000")}>2 × $300.000</button>
+              <a className="nl" href={homeUrl()} target="_blank" rel="noopener noreferrer" onClick={() => setMenuOpen(false)}>Inicio</a>
+              <a className="nl" href={homeUrl()} target="_blank" rel="noopener noreferrer" onClick={() => setMenuOpen(false)}>Catálogo</a>
+              <a className="nl" href={categoryUrl("Para Él")} target="_blank" rel="noopener noreferrer" onClick={() => setMenuOpen(false)}>Para Él</a>
+              <a className="nl" href={categoryUrl("Para Ella")} target="_blank" rel="noopener noreferrer" onClick={() => setMenuOpen(false)}>Para Ella</a>
+              <a className="nl" href={categoryUrl("Unisex")} target="_blank" rel="noopener noreferrer" onClick={() => setMenuOpen(false)}>Unisex</a>
+              <a className="nl" href={categoryUrl("Diseñador")} target="_blank" rel="noopener noreferrer" onClick={() => setMenuOpen(false)}>Diseñador</a>
+              <a className="nl" href={categoryUrl("Árabes")} target="_blank" rel="noopener noreferrer" onClick={() => setMenuOpen(false)}>Árabes</a>
+              <a className="nl" href={categoryUrl("2 × $300.000")} target="_blank" rel="noopener noreferrer" onClick={() => setMenuOpen(false)}>2 × $300.000</a>
             </div>
           </>
         ) : (
