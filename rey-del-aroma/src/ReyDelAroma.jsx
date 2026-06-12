@@ -768,7 +768,8 @@ a.nl { text-decoration: none; display: inline-flex; align-items: center; }
 .subscribe { position: relative; overflow: hidden; background: linear-gradient(165deg, #17150f 0%, #0c0b09 100%); border-top: 1px solid rgba(201,168,76,0.42); padding: 66px 52px; }
 .subscribe::before { content: ''; position: absolute; top: -55%; left: 50%; transform: translateX(-50%); width: 90%; height: 120%; background: radial-gradient(ellipse at center, rgba(201,168,76,0.16), transparent 62%); pointer-events: none; }
 .sub-inner { position: relative; max-width: 600px; margin: 0 auto; text-align: center; }
-.sub-crown { display: flex; justify-content: center; margin-bottom: 12px; }
+.sub-crown { display: flex; justify-content: center; margin-bottom: 18px; }
+.sub-logo { height: 76px; width: auto; display: block; filter: drop-shadow(0 6px 20px rgba(201,168,76,0.4)); }
 .sub-eyebrow { font-family: var(--sans); font-size: 11px; font-weight: 600; letter-spacing: 4px; text-transform: uppercase; color: var(--gold); margin-bottom: 10px; }
 .sub-title { font-family: var(--serif); font-size: 38px; font-weight: 600; color: #f5f0e4; line-height: 1.12; margin-bottom: 14px; }
 .sub-title span { color: var(--gold); font-style: italic; }
@@ -782,7 +783,7 @@ a.nl { text-decoration: none; display: inline-flex; align-items: center; }
 .sub-mini { position: relative; font-size: 11px; color: rgba(255,255,255,0.4); letter-spacing: 0.4px; margin-top: 14px; }
 .sub-success { position: relative; padding: 8px 0; }
 .sub-check { width: 64px; height: 64px; border-radius: 50%; background: linear-gradient(135deg, var(--gold-l), var(--gold)); color: #1a1208; font-size: 32px; font-weight: 700; display: flex; align-items: center; justify-content: center; margin: 0 auto 18px; box-shadow: 0 0 40px rgba(201,168,76,0.5); }
-@media (max-width: 768px) { .subscribe { padding: 48px 16px; } .sub-title { font-size: 30px; } .sub-form { flex-direction: column; } .sub-btn { padding: 15px; } }
+@media (max-width: 768px) { .subscribe { padding: 48px 16px; } .sub-title { font-size: 30px; } .sub-form { flex-direction: column; } .sub-btn { padding: 15px; } .sub-logo { height: 62px; } }
 
 /* ── FILTRO POR FAMILIA OLFATIVA (TIPO DE AROMA) ── */
 .fam-filters { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
@@ -1608,7 +1609,7 @@ export default function ReyDelAroma() {
         <div className="sub-inner">
           {!newsletterDone ? (
             <>
-              <div className="sub-crown"><Crown size={42} /></div>
+              <div className="sub-crown"><img className="sub-logo" src={logoPrincipal} alt="Rey del Aroma" /></div>
               <div className="sub-eyebrow">Club Rey del Aroma</div>
               <h3 className="sub-title">Únete a la <span>realeza</span></h3>
               <p className="sub-text">Regístrate y recibe descuentos exclusivos, promociones y los nuevos lanzamientos antes que nadie.</p>
